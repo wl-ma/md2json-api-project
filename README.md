@@ -186,6 +186,148 @@ structure_api_call/
 
 这些 trace 不包含 API key，可用于定位 prompt、schema、模型响应和后处理问题。
 
+注意：trace 虽然不包含 API key，但包含上传文档内容、prompt 和模型输出；`source_md_sections/`
+也包含原文。部署为服务时，这些文件必须留在服务端私有作业目录中，不可作为静态文件或下载接口公开。
+
+## HTTP API 服务部署
+
+项目提供异步 HTTP 服务入口。上传会立即返回 `job_id`，转换在后台 worker 中完成，客户端轮询状态后读取最终 JSON。
+API 不接收 API key、endpoint、服务器路径或 provider 配置；这些配置只能由服务器管理员提供。
+
+### 服务端配置
+
+生产环境推荐由 `systemd` 的受限 `EnvironmentFile` 注入配置，文件权限设置为仅服务账户可读：
+
+```text
+MD2JSON_API_TOKEN=replace_with_a_long_random_service_token
+MD2JSON_SERVER_BACKEND=azure
+MD2JSON_MODEL=your_azure_deployment
+MD2JSON_JOBS_ROOT=/srv/md2json/jobs
+MD2JSON_WORKERS=1
+MD2JSON_MAX_UPLOAD_BYTES=10485760
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_VERSION=2024-10-21
+AZURE_OPENAI_API_KEY=your_api_key_here
+```
+
+使用 OpenAI backend 时，配置 `MD2JSON_SERVER_BACKEND=openai` 和 `OPENAI_API_KEY`；不要在客户端请求、
+命令行参数或日志中发送 key。`MD2JSON_WORKERS=1` 是当前文件型输出和恢复机制下最稳妥的部署设置。
+
+启动服务：
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m md2json_api.cli serve --host 127.0.0.1 --port 8000
+```
+
+服务默认要求 `MD2JSON_API_TOKEN`。只有隔离的本地测试环境才可显式设置
+`MD2JSON_ALLOW_UNAUTHENTICATED=true`。生产环境应由 Nginx 或 Caddy 在前端终止 HTTPS，只代理必要的
+API 路径，不要将 `/srv/md2json/jobs` 映射为静态目录。
+
+### API 合约
+
+创建转换任务：
+
+```bash
+curl -X POST https://api.example.com/v1/conversions \
+  -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
+  -F "file=@/path/to/input.md;type=text/markdown" \
+  -F "prompt_profile=auto" \
+  -F "structure_mode=auto" \
+  -F "audit_mode=auto"
+```
+
+可由客户端选择的参数仅为：
+
+- `prompt_profile`：`auto`、`textbook`、`paper`、`chinese_math`
+- `structure_mode`：`auto`、`llm`、`hard`
+- `audit_mode`：`auto`、`llm`、`off`
+
+接口列表：
+
+| Method | Path | 返回内容 |
+|---|---|---|
+| `GET` | `/healthz` | 存活状态，不包含配置或凭据 |
+| `POST` | `/v1/conversions` | `job_id` 和初始任务状态 |
+| `GET` | `/v1/conversions/{job_id}` | 状态、阶段和 section 进度 |
+| `POST` | `/v1/conversions/{job_id}/resume` | 将失败任务按安全缓存规则重新排队 |
+| `GET` | `/v1/conversions/{job_id}/result` | 成功任务的最终 item JSON |
+| `GET` | `/v1/conversions/{job_id}/quality` | 脱敏后的质量报告 |
+
+除 `/healthz` 外的接口都需要 bearer token。API 不提供 trace、源 Markdown 切片、内部错误栈或服务器路径。
+
+### `systemd` 示例
+
+服务配置文件 `/etc/md2json/md2json.env` 应由管理员创建并设置为仅服务账户可读；其中 key/token 使用实际本地值，
+不要提交到仓库。
+
+```ini
+[Unit]
+Description=md2json API service
+After=network-online.target
+
+[Service]
+Type=simple
+User=md2json
+Group=md2json
+WorkingDirectory=/opt/md2json-api-project
+EnvironmentFile=/etc/md2json/md2json.env
+ExecStart=/opt/md2json-api-project/.venv/bin/python -m md2json_api.cli serve --host 127.0.0.1 --port 8000
+Restart=on-failure
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`MD2JSON_JOBS_ROOT` 下包含上传原文、trace、内部 SQLite 状态库和输出文件，权限应限制在服务账户内，并配置保留期清理。
+
+## 使用 tmux 观察人工任务
+
+`systemd` 适用于 API 服务本身；`tmux` 适用于管理员人工运行一次性长任务或排查转换行为。
+
+创建会话并运行任务：
+
+```bash
+tmux new -s md2json
+cd /path/to/md2json-api-project
+. .venv/bin/activate
+python3 -m md2json_api.cli convert /data/input/book.md \
+  --backend azure \
+  --model "$MD2JSON_MODEL" \
+  --prompt-profile auto \
+  --structure-mode llm \
+  --audit-mode llm \
+  --out-dir /data/jobs/manual-001/output
+```
+
+常用操作：
+
+```bash
+# 在会话中按 Ctrl-b 后按 d，以保持任务运行并退出窗口
+tmux ls
+tmux attach -t md2json
+tmux capture-pane -pt md2json -S -80
+tmux list-panes -t md2json -F '#{pane_pid} #{pane_current_command} #{pane_current_path}'
+pgrep -af 'md2json_api.cli convert'
+```
+
+中断后续跑必须使用相同输入、相同设置和相同输出目录：
+
+```bash
+python3 -m md2json_api.cli convert /data/input/book.md \
+  --backend azure \
+  --model "$MD2JSON_MODEL" \
+  --prompt-profile auto \
+  --structure-mode llm \
+  --audit-mode llm \
+  --resume \
+  --out-dir /data/jobs/manual-001/output
+```
+
+续跑现在会校验输入内容摘要和有效转换设置，并使用输出目录互斥锁；输入或设置改变时不会复用旧缓存。
+
 ## Prompt Profiles
 
 API backend 支持三套 prompt profile，也可以用 `auto` 自动判断：
@@ -280,7 +422,7 @@ python3 -m md2json_api.cli convert INPUT_MD [options]
   - `auto`：默认；对 `openai`、`azure`、`mock` 启用 LLM audit/repair，对 `local` 不启用。
   - `llm`：显式要求 LLM audit/repair；仅对 `openai`、`azure`、`mock` 生效。
   - `off`：只做初抽，不做 LLM 检查/修复。
-- `--resume`：复用输出目录中已有的 `structure_api_call/response.json`、`api_calls/sectionXX_response.json` 和 `audit_api_calls/sectionXX_response.json`，用于中断后续跑，避免重复调用已经成功的步骤。
+- `--resume`：在 `.conversion_manifest.json` 的输入摘要和有效设置校验通过后，复用输出目录中已有的 `structure_api_call/response.json`、`api_calls/sectionXX_response.json` 和 `audit_api_calls/sectionXX_response.json`，用于中断后续跑，避免重复调用已经成功的步骤。旧版本生成但没有 manifest 的 trace 不会被安全续跑复用。
 
 相关环境变量：
 

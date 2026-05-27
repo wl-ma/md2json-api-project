@@ -56,6 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = subparsers.add_parser("inspect", help="Show detected chapter/section boundaries only.")
     inspect.add_argument("input_md", type=Path)
 
+    serve = subparsers.add_parser("serve", help="Run the authenticated asynchronous HTTP API service.")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+
     return parser
 
 
@@ -106,6 +110,17 @@ def main(argv: list[str] | None = None) -> int:
         result = MarkdownJsonConverter(config).convert(args.input_md, args.out_dir)
         print(f"wrote {result.items_total} items across {result.sections_written} sections")
         print(result.out_dir)
+        return 0
+
+    if args.command == "serve":
+        try:
+            import uvicorn
+        except ModuleNotFoundError as exc:
+            parser.error("The API dependencies are not installed. Run: python3 -m pip install -r requirements.txt")
+            raise exc
+        from .server import create_app
+
+        uvicorn.run(create_app(), host=args.host, port=args.port)
         return 0
 
     parser.print_help()

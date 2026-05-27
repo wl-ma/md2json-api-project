@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 
 from .prompts import STRUCTURE_SYSTEM_PROMPT, build_structure_prompt
+from .runtime import atomic_write_json
 from .schema import (
     chat_structure_plan_json_schema_response_format,
     responses_structure_plan_json_schema_format,
@@ -419,9 +420,9 @@ def _write_trace(
         "response_json": response_payload,
         "usage": usage,
     }
-    (trace_dir / "call.json").write_text(json.dumps(combined, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (trace_dir / "request.json").write_text(json.dumps(request_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (trace_dir / "response.json").write_text(json.dumps(response_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(trace_dir / "call.json", combined)
+    atomic_write_json(trace_dir / "request.json", request_payload)
+    atomic_write_json(trace_dir / "response.json", response_payload)
 
 
 def _collect_response_text(response: Any) -> str:

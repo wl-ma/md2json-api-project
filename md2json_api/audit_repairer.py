@@ -12,6 +12,7 @@ import urllib.request
 from .audit_tools import AuditSourceToolExecutor, audit_source_tool_schemas
 from .models import MarkdownSection
 from .prompts import build_audit_repair_prompt, build_audit_repair_system_prompt
+from .runtime import atomic_write_json
 from .schema import (
     chat_audit_repair_json_schema_response_format,
 )
@@ -525,18 +526,9 @@ def _write_trace(
         "response_json": response_payload,
         "usage": usage,
     }
-    (trace_dir / f"{stem}.json").write_text(
-        json.dumps(combined, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    (trace_dir / f"{stem}_request.json").write_text(
-        json.dumps(request_payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    (trace_dir / f"{stem}_response.json").write_text(
-        json.dumps(response_payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(trace_dir / f"{stem}.json", combined)
+    atomic_write_json(trace_dir / f"{stem}_request.json", request_payload)
+    atomic_write_json(trace_dir / f"{stem}_response.json", response_payload)
 
 
 def _collect_response_text(response: Any) -> str:

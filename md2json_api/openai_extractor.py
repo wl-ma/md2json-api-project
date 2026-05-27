@@ -7,6 +7,7 @@ from typing import Any
 
 from .models import MarkdownSection
 from .prompts import build_section_prompt, build_system_prompt
+from .runtime import atomic_write_json
 from .schema import responses_json_schema_format
 
 
@@ -110,18 +111,9 @@ class OpenAISectionExtractor:
             "response_text": response_text,
             "response_json": response_payload,
         }
-        (self.trace_dir / f"{stem}.json").write_text(
-            json.dumps(combined, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        (self.trace_dir / f"{stem}_request.json").write_text(
-            json.dumps(request_payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        (self.trace_dir / f"{stem}_response.json").write_text(
-            json.dumps(response_payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(self.trace_dir / f"{stem}.json", combined)
+        atomic_write_json(self.trace_dir / f"{stem}_request.json", request_payload)
+        atomic_write_json(self.trace_dir / f"{stem}_response.json", response_payload)
 
 
 def _collect_response_text(response: Any) -> str:

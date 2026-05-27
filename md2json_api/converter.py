@@ -4,7 +4,7 @@ import copy
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .audit_repairer import (
     AzureChatSectionAuditRepairer,
@@ -18,6 +18,7 @@ from .mock_extractor import MockApiSectionExtractor
 from .models import ALLOWED_ENVS, ENV_ALIASES, ENV_DISPLAY, ConversionResult, MarkdownSection
 from .openai_extractor import OpenAISectionExtractor
 from .quality import build_quality_report
+from .runtime import output_directory_lock, prepare_conversion_manifest
 from .splitter import split_markdown_document
 from .structure import (
     build_structure_candidates,
@@ -99,13 +100,28 @@ class MarkdownJsonConverter:
         self.extractor = self._build_extractor(config)
         self.auditor = self._build_auditor(config)
 
-    def convert(self, input_md: Path, out_dir: Path | None = None) -> ConversionResult:
+    def convert(
+        self,
+        input_md: Path,
+        out_dir: Path | None = None,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> ConversionResult:
         input_md = input_md.expanduser().resolve()
         if out_dir is None:
             out_dir = input_md.with_name(f"{input_md.stem}_json")
         else:
             out_dir = out_dir.expanduser().resolve()
 
+        with output_directory_lock(out_dir):
+            prepare_conversion_manifest(input_md=input_md, out_dir=out_dir, config=self.config)
+            return self._convert_locked(input_md, out_dir, progress_callback)
+
+    def _convert_locked(
+        self,
+        input_md: Path,
+        out_dir: Path,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
+    ) -> ConversionResult:
         if hasattr(self.extractor, "set_trace_dir"):
             trace_name = "mock_api_calls" if self.config.backend == "mock" else "api_calls"
             trace_dir = out_dir / trace_name
@@ -148,6 +164,8 @@ class MarkdownJsonConverter:
             else hard_split_plan
         )
         sections = split_plan.sections
+        if progress_callback is not None:
+            progress_callback({"phase": "extracting", "sections_total": len(sections), "sections_completed": 0})
         all_items: list[dict[str, Any]] = []
         section_items: list[list[dict[str, Any]]] = []
         initial_section_items: list[list[dict[str, Any]]] = []
@@ -169,6 +187,14 @@ class MarkdownJsonConverter:
                 global_item = copy.deepcopy(item)
                 global_item["index"] = len(all_items) + 1
                 all_items.append(global_item)
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "phase": "extracting",
+                        "sections_total": len(sections),
+                        "sections_completed": section.index,
+                    }
+                )
 
         result = write_outputs(
             source_file=input_md,
@@ -196,6 +222,14 @@ class MarkdownJsonConverter:
             mode=self.config.structure_mode,
             used=structure_used and structure_plan is not None,
         )
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "phase": "completed",
+                    "sections_total": len(sections),
+                    "sections_completed": len(sections),
+                }
+            )
         return result
 
     @staticmethod
