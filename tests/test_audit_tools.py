@@ -219,6 +219,64 @@ class AuditSourceToolTests(unittest.TestCase):
         self.assertNotIn("Corollary 3.2", items[0]["proof"])
         self.assertIn("clipped to preserve item boundaries", result["tool_validation"]["warnings"][0])
 
+    def test_end_occurrence_is_resolved_from_section_start(self) -> None:
+        section = MarkdownSection(
+            index=4,
+            context=SectionContext(
+                chapter="Test notes",
+                chapter_number="",
+                section="4. Repeated boundary section",
+                section_number="4",
+            ),
+            text=(
+                "Example 1. Earlier content.\n\n"
+                "Repeated transition sentence.\n\n"
+                "Example 2. Later content that should be extracted.\n\n"
+                "Repeated transition sentence.\n\n"
+                "Theorem 3. The next item."
+            ),
+            start_line=40,
+            end_line=48,
+            heading_level=3,
+            source_heading="4. Repeated boundary section",
+        )
+        executor = AuditSourceToolExecutor(section, [])
+
+        result = executor.execute(
+            "build_repaired_items",
+            {
+                "audit_markdown": "Repair a span with a repeated end anchor.",
+                "overall_assessment": "minor repair",
+                "actions": [],
+                "open_questions": [],
+                "items": [
+                    {
+                        "label": "Example 2",
+                        "env": "example",
+                        "number_components": ["2"],
+                        "dependencies": [],
+                        "content_span": {
+                            "start_anchor": "Example 2.",
+                            "end_anchor": "Repeated transition sentence.",
+                            "start_occurrence": 1,
+                            "end_occurrence": 2,
+                            "include_start": True,
+                            "include_end": False,
+                        },
+                        "proof_span": None,
+                        "preserve_current_label": None,
+                        "source_order_anchor": "Example 2.",
+                        "reason": "copy the later example using the global second end anchor",
+                    },
+                ],
+            },
+        )
+
+        items = result["repaired_items"]
+        self.assertEqual([item["label"] for item in items], ["Example 2"])
+        self.assertEqual(items[0]["content"], "Example 2. Later content that should be extracted.")
+        self.assertEqual(result["tool_validation"]["warnings"], [])
+
     def test_preserved_item_with_non_source_backed_text_is_repaired_from_declared_anchors(self) -> None:
         section = MarkdownSection(
             index=9,
@@ -302,6 +360,88 @@ class AuditSourceToolTests(unittest.TestCase):
         self.assertNotIn("{{z}_{1}}", items[0]["content"])
         self.assertEqual(items[0]["proof"], "Apply Theorem 9.2. ||")
         self.assertEqual(result["tool_validation"]["warnings"], [])
+
+    def test_delayed_proof_span_after_next_anchor_is_kept_with_warning(self) -> None:
+        section = MarkdownSection(
+            index=2,
+            context=SectionContext(
+                chapter="Test notes",
+                chapter_number="",
+                section="2. Inserted remarks",
+                section_number="2",
+            ),
+            text=(
+                "Proposition 7.1. A statement whose proof follows an inserted remark.\n\n"
+                "Preliminary remark. This is a separate source item before the proof.\n\n"
+                "Proof of proposition 7.1. The proof starts after the preliminary remark.\n\n"
+                "Note. A note after the proof."
+            ),
+            start_line=20,
+            end_line=26,
+            heading_level=2,
+            source_heading="Inserted remarks",
+        )
+        executor = AuditSourceToolExecutor(section, [])
+
+        result = executor.execute(
+            "build_repaired_items",
+            {
+                "audit_markdown": "Proof span crosses an inserted source item.",
+                "overall_assessment": "moderate repair",
+                "actions": [],
+                "open_questions": [],
+                "items": [
+                    {
+                        "label": "Proposition 7.1",
+                        "env": "prop",
+                        "number_components": ["7", "1"],
+                        "dependencies": [],
+                        "content_span": {
+                            "start_anchor": "Proposition 7.1. A statement",
+                            "end_anchor": "Preliminary remark.",
+                            "start_occurrence": 1,
+                            "end_occurrence": 1,
+                            "include_start": True,
+                            "include_end": False,
+                        },
+                        "proof_span": {
+                            "start_anchor": "Proof of proposition 7.1.",
+                            "end_anchor": "Note.",
+                            "start_occurrence": 1,
+                            "end_occurrence": 1,
+                            "include_start": False,
+                            "include_end": False,
+                        },
+                        "preserve_current_label": None,
+                        "source_order_anchor": "Proposition 7.1. A statement",
+                        "reason": "keep proposition even if proof span is invalid",
+                    },
+                    {
+                        "label": "Remark 7.1-extra-1",
+                        "env": "remark",
+                        "number_components": [],
+                        "dependencies": [],
+                        "content_span": {
+                            "start_anchor": "Preliminary remark.",
+                            "end_anchor": "Proof of proposition 7.1.",
+                            "start_occurrence": 1,
+                            "end_occurrence": 1,
+                            "include_start": True,
+                            "include_end": False,
+                        },
+                        "proof_span": None,
+                        "preserve_current_label": None,
+                        "source_order_anchor": "Preliminary remark.",
+                        "reason": "separate inserted remark",
+                    },
+                ],
+            },
+        )
+
+        items = result["repaired_items"]
+        self.assertEqual([item["label"] for item in items], ["Proposition 7.1", "Remark 7.1-extra-1"])
+        self.assertEqual(items[0]["proof"], "The proof starts after the preliminary remark.")
+        self.assertIn("may be an explicit delayed proof", result["tool_validation"]["warnings"][-1])
 
 
 if __name__ == "__main__":

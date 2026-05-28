@@ -339,9 +339,10 @@ class AuditSourceToolExecutor:
             validation["message"] = f"Could not extract content span for {label}: {content_result.get('error')}"
             return None, validation, order_position
         if proof_result is not None and not proof_result.get("found"):
-            validation["ok"] = False
-            validation["message"] = f"Could not extract proof span for {label}: {proof_result.get('error')}"
-            return None, validation, order_position
+            message = f"Could not extract proof span for {label}: {proof_result.get('error')}"
+            validation["proof_source"] = "current_or_null_after_failed_span"
+            validation["warnings"].append(message)
+            proof_result = None
 
         if content_result is not None:
             content = str(content_result.get("text") or "").strip()
@@ -485,10 +486,9 @@ def _extract_span_from_source(
         end_anchor_text = str(end_anchor)
         if not end_anchor_text:
             return {"found": False, "error": "empty end_anchor"}
-        search_from = start_anchor_pos + len(start_anchor)
-        end_anchor_pos = _find_nth(section.text, end_anchor_text, end_occurrence, start=search_from)
+        end_anchor_pos = _find_nth(section.text, end_anchor_text, end_occurrence, start=0)
         if end_anchor_pos is None:
-            return {"found": False, "error": f"end_anchor not found after start: {end_anchor_text[:80]!r}"}
+            return {"found": False, "error": f"end_anchor occurrence not found: {end_anchor_text[:80]!r}"}
         end = end_anchor_pos + len(end_anchor_text) if include_end else end_anchor_pos
 
     if end < start:
@@ -545,6 +545,11 @@ def _clip_span_to_next_anchor(
             f"{field_name} span for {label} starts at or after the next item anchor; "
             "the model should choose an anchor inside the current item."
         )
+        if field_name == "proof":
+            return [
+                message
+                + " Keeping the resolved proof span because it may be an explicit delayed proof."
+            ]
         result["found"] = False
         result["error"] = message
         return [

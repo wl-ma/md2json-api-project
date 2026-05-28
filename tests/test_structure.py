@@ -75,6 +75,105 @@ class StructurePlannerTests(unittest.TestCase):
         self.assertEqual(split_plan.sections[0].context.chapter, "Complete book")
         self.assertEqual(split_plan.sections[0].context.chapter_number, "")
 
+    def test_structure_plan_can_set_section_level_chapters(self) -> None:
+        fallback = SplitPlan(
+            sections=[
+                MarkdownSection(
+                    index=1,
+                    context=SectionContext(
+                        chapter="Complete book",
+                        chapter_number="",
+                        section="I.1. Formal Power Series",
+                        section_number="I.1",
+                    ),
+                    text="fallback",
+                    start_line=1,
+                    end_line=5,
+                    heading_level=None,
+                    source_heading="fallback",
+                )
+            ]
+        )
+        plan = {
+            "chapter": "Complete book",
+            "chapter_number": "",
+            "sections": [
+                {
+                    "section_number": "I.1",
+                    "section_title": "Formal Power Series",
+                    "chapter": "Chapter I. Power Series in One Variable",
+                    "chapter_number": "I",
+                    "start_line": 2,
+                    "end_line": 3,
+                    "heading_source": "## 1. Formal Power Series",
+                    "confidence": "high",
+                    "reason": "test",
+                },
+                {
+                    "section_number": "II.1",
+                    "section_title": "Curvilinear Integrals",
+                    "chapter": "Chapter II. Holomorphic Functions, Cauchy's Integral",
+                    "chapter_number": "II",
+                    "start_line": 4,
+                    "end_line": 5,
+                    "heading_source": "## 1. Curvilinear Integrals",
+                    "confidence": "high",
+                    "reason": "test",
+                },
+            ],
+            "warnings": [],
+        }
+
+        split_plan = split_plan_from_structure_plan(
+            source_text=(
+                "# Book\n"
+                "## 1. Formal Power Series\n"
+                "Body\n"
+                "## 1. Curvilinear Integrals\n"
+                "Body\n"
+            ),
+            source_name="book.md",
+            plan=plan,
+            fallback_plan=fallback,
+        )
+
+        self.assertEqual(split_plan.sections[0].context.chapter, "Chapter I. Power Series in One Variable")
+        self.assertEqual(split_plan.sections[0].context.chapter_number, "I")
+        self.assertEqual(split_plan.sections[0].context.section_number, "I.1")
+        self.assertEqual(split_plan.sections[1].context.chapter, "Chapter II. Holomorphic Functions, Cauchy's Integral")
+        self.assertEqual(split_plan.sections[1].context.chapter_number, "II")
+        self.assertEqual(split_plan.sections[1].context.section_number, "II.1")
+
+    def test_structure_plan_qualifies_local_section_numbers_with_chapter(self) -> None:
+        fallback = SplitPlan(sections=[])
+        plan = {
+            "chapter": "Complete book",
+            "chapter_number": "",
+            "sections": [
+                {
+                    "section_number": "1",
+                    "section_title": "Formal Power Series",
+                    "chapter": "Power Series in One Variable",
+                    "chapter_number": "I",
+                    "start_line": 1,
+                    "end_line": 2,
+                    "heading_source": "## 1. Formal Power Series",
+                    "confidence": "high",
+                    "reason": "test",
+                }
+            ],
+            "warnings": [],
+        }
+
+        split_plan = split_plan_from_structure_plan(
+            source_text="## 1. Formal Power Series\nBody\n",
+            source_name="book.md",
+            plan=plan,
+            fallback_plan=fallback,
+        )
+
+        self.assertEqual(split_plan.sections[0].context.section_number, "I.1")
+
 
 if __name__ == "__main__":
     unittest.main()

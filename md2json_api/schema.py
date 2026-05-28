@@ -128,6 +128,8 @@ STRUCTURE_SECTION_SCHEMA: dict = {
     "properties": {
         "section_number": {"type": "string"},
         "section_title": {"type": "string"},
+        "chapter": {"type": "string"},
+        "chapter_number": {"type": "string"},
         "start_line": {"type": "integer"},
         "end_line": {"type": "integer"},
         "heading_source": {"type": "string"},
@@ -137,6 +139,8 @@ STRUCTURE_SECTION_SCHEMA: dict = {
     "required": [
         "section_number",
         "section_title",
+        "chapter",
+        "chapter_number",
         "start_line",
         "end_line",
         "heading_source",

@@ -133,7 +133,14 @@ def split_plan_from_structure_plan(
             end_line = start_line
             warnings.append(f"Adjusted invalid end_line for section {local_index}.")
         previous_end = end_line
-        section_number = str(raw.get("section_number") or "").strip() or str(local_index)
+        section_chapter = str(raw.get("chapter") or "").strip() or chapter
+        section_chapter_number = str(raw.get("chapter_number") or "").strip()
+        if "chapter_number" not in raw:
+            section_chapter_number = chapter_number
+        section_number = _qualified_section_number(
+            str(raw.get("section_number") or "").strip() or str(local_index),
+            section_chapter_number,
+        )
         section_title = str(raw.get("section_title") or "").strip() or section_number
         source_heading = _source_heading(lines, start_line, section_title)
         heading_level = _heading_level(lines[start_line - 1]) if 1 <= start_line <= total_lines else None
@@ -142,8 +149,8 @@ def split_plan_from_structure_plan(
             MarkdownSection(
                 index=local_index,
                 context=SectionContext(
-                    chapter=chapter,
-                    chapter_number=chapter_number,
+                    chapter=section_chapter,
+                    chapter_number=section_chapter_number,
                     section=f"{section_number}. {section_title}".strip(),
                     section_number=section_number,
                 ),
@@ -160,6 +167,16 @@ def split_plan_from_structure_plan(
         front_matter = _join_lines(lines, 1, sections[0].start_line).strip()
     back_matter = _ranges_text(lines, plan.get("back_matter_ranges"))
     return SplitPlan(sections=sections, front_matter=front_matter, back_matter=back_matter, warnings=warnings)
+
+
+def _qualified_section_number(section_number: str, chapter_number: str) -> str:
+    if not section_number or not chapter_number:
+        return section_number
+    if section_number == chapter_number or section_number.startswith(f"{chapter_number}."):
+        return section_number
+    if re.fullmatch(r"\d+(?:\.\d+)*", section_number):
+        return f"{chapter_number}.{section_number}"
+    return section_number
 
 
 def write_structure_planner_artifacts(

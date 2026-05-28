@@ -48,6 +48,7 @@ FIELD_SPEC = """Field specification for every item:
 
 - dependencies:
   Default to []. Fill only when the source explicitly names a dependency and the name is recoverable without guessing, such as "by Theorem 2.1" or "using Lemma 3.4". Use the same canonical source-aware labels as label, so an explicit dependency on "Theorem 6.1" stays "Theorem 6.1" rather than a synthetic local-index label. Do not infer hidden dependencies.
+  Treat dependencies as source-internal mathematical item labels only. Do not put bibliography citations, bracketed references like "[12]", author-year references, book/paper titles, page references, or theorem numbers from other works into dependencies. Preserve external citations verbatim in content/proof.
 
 - proof:
   Use null unless a proof block is explicitly marked. When a proof boundary is explicit, put the proof body in proof and keep the statement in content. Do not create standalone proof items.
@@ -67,6 +68,7 @@ COMMON_RULES = """Extraction rules:
 - If the proof boundary is ambiguous, keep the text in content and set proof to null.
 - Do not invent theorem numbers, dependencies, missing statements, proof text, or hidden structure.
 - Keep one item per logical extracted block. Do not split one theorem into several items just because it has cases, equations, or paragraphs.
+- In an Exercises/Problems subsection, split explicitly numbered exercises/problems into separate items. Do not merge a list such as "1. ... 2. ... 3. ..." into one exercise block; use labels like "Exercise 1", "Exercise 2", etc. when those numbers are printed in the source.
 - Return valid JSON only. The response schema is enforced.
 """
 
@@ -349,8 +351,10 @@ Audit targets:
 - proof should be merged: proof was split when the boundary is not explicit or belongs elsewhere.
 - duplicate or spurious item: JSON has a repeated item or an item not supported by the source.
 - wrong item boundary: one source item was split into fragments, or multiple source items were merged incorrectly.
+- merged exercises/problems: an Exercises/Problems subsection has explicitly numbered entries, but the current JSON combines them into one block instead of one item per numbered entry.
 - wrong ordering, numbering, or label style. Explicitly numbered source items must keep their source labels, while unnumbered inferred items must use synthetic "-extra-" labels.
 - broken dependency: dependency is invented, malformed, or an explicit dependency is clearly missing.
+- external reference dependency: bibliography citations, bracketed references like "[12]", author-year references, book/paper titles, page references, or theorem numbers from other works should not appear in dependencies.
 
 Conservative repair principles:
 - Preserve current JSON whenever it is defensible.
@@ -358,13 +362,15 @@ Conservative repair principles:
 - Do not add ordinary explanatory paragraphs as remarks unless they are central definition/notation/opening blocks.
 - Split proof only when the boundary is explicit.
 - Do not invent dependencies.
+- Do not treat external literature references as missing dependencies; if they appear in dependencies, remove them while preserving the citation in content/proof.
 - If uncertain, keep repaired_items conservative and record the uncertainty in open_questions.
 
 When source tools are available:
 - You decide the source item inventory by reading the Markdown, just as in the first extraction/API-calls stage. Do not assume a fixed theorem-name regex or a fixed textbook style.
 - Call list_source_item_labels with your own identified labels/items; that tool only records your decision and checks literal anchors.
 - Use search_source and extract_source_span to locate exact source spans for repaired content/proof. The tools copy spans from the Markdown; they do not decide what counts as a theorem, definition, lemma, etc.
-- Choose source anchors that are long enough to be unique. Prefer the complete visible item heading for content spans, and for proof spans prefer "Proof." plus distinctive nearby words/formulas rather than generic phrases.
+- Choose source anchors that are long enough to be unique. Prefer the complete visible item heading plus the opening words/formula for content spans. For proof spans, prefer the explicit proof marker plus the item label and distinctive nearby words/formulas rather than generic phrases.
+- Make source_order_anchor the exact visible heading or opening sentence of the item itself, not a nearby note, preliminary remark, or proof marker.
 - Proof spans in build_repaired_items are resolved after that item's content span. Content and proof spans must stay within the current item and must not cross the next item's source_order_anchor.
 - In build_repaired_items, enumerate the complete final item array. Preserve unchanged current items by label, and use source spans for any new or modified item text.
 - Never handwrite repaired content/proof text when a source span can be used.
@@ -543,6 +549,7 @@ Chapter and section metadata audit:
 - Treat tables of contents, reading guides, series title pages, comments/references sections, bibliography entries, and index entries as unreliable sources for canonical JSON naming unless the document itself is only that material.
 - Do not inherit a Part heading as chapter_number merely because it appears before a section. Part I/II/VIII headings are often structural dividers inside a complete book; they should not become chapter_number for ordinary numbered book sections unless the source truly uses parts as the JSON chapter level.
 - For a complete book organized directly into numbered sections such as "SECTION 1", "SECTION 2", ..., prefer a book-level chapter such as "Complete book" and an empty chapter_number, while keeping section_number as "1", "2", etc.
+- If a complete book contains multiple explicit chapter headings, keep document_title as the book title and use top-level chapter/chapter_number only as fallback metadata. Each section entry must carry the true chapter and chapter_number active at that section, not "Complete book".
 - For a single chapter excerpt organized into subsections, keep the true chapter number and use subsection numbers as section_number.
 - For a paper, keep chapter_number empty unless there is an explicit chapter-like unit in the source.
 - Do not prefix section_number with a stale chapter or part number. For example, do not turn section "13" into "VIII.13" or bibliography author "A. Brøndsted" into "VIII.A".
@@ -611,7 +618,7 @@ Return:
 1. document_title
 2. chapter and chapter_number
 3. front_matter_ranges
-4. sections with section_number, section_title, start_line, end_line, heading_source, confidence, reason
+4. sections with section_number, section_title, chapter, chapter_number, start_line, end_line, heading_source, confidence, reason
 5. back_matter_ranges
 6. warnings
 """

@@ -433,15 +433,20 @@ def infer_number_components(env: str, content: str) -> list[str]:
         return []
     first_line = content.splitlines()[0] if content else ""
     first_line = re.sub(r"^\s*(?:#{1,6}\s*)?[*_`]+", "", first_line)
-    label_pattern = "|".join(re.escape(label) for label in labels)
+    label_pattern = "|".join(re.escape(label) for label in sorted(labels, key=len, reverse=True))
     match = re.match(
-        rf"^\s*(?:{label_pattern})\s*[:：.]?\s*{SOURCE_NUMBER_RE}(?=[\s.:：)）(]|$)",
+        rf"^\s*(?:{label_pattern})(?![A-Za-z])\s*([:：.]?)\s*{SOURCE_NUMBER_RE}(?=[\s.:：)）(]|$)",
         first_line,
         flags=re.IGNORECASE,
     )
     if not match:
         return []
-    return [part for part in match.group(1).split(".") if part]
+    separator = match.group(1)
+    number = match.group(2)
+    parts = [part for part in number.split(".") if part]
+    if separator == "." and len(parts) == 1 and re.fullmatch(r"[A-Za-z]", parts[0]):
+        return []
+    return parts
 
 
 def normalize_dependencies(value: Any) -> list[str]:

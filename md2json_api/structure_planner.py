@@ -333,6 +333,8 @@ def _heuristic_plan(*, source_name: str, source_text: str, hard_plan: SplitPlan)
             {
                 "section_number": number,
                 "section_title": title,
+                "chapter": chapter,
+                "chapter_number": chapter_number,
                 "start_line": start_line,
                 "end_line": end_line,
                 "heading_source": heading,
@@ -346,6 +348,8 @@ def _heuristic_plan(*, source_name: str, source_text: str, hard_plan: SplitPlan)
                 {
                     "section_number": section.context.section_number,
                     "section_title": section.context.section,
+                    "chapter": section.context.chapter,
+                    "chapter_number": section.context.chapter_number,
                     "start_line": section.start_line,
                     "end_line": section.end_line,
                     "heading_source": section.source_heading,

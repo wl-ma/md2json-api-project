@@ -77,20 +77,23 @@ md2json-api convert /path/to/input.md --out-dir /path/to/output_json
 
 ```bash
 cd /home/xuanzhi_ren/Pdf2jsonPipeline/md2json_api_project
+source .venv/bin/activate
 
 set -a
 source ~/.config/md2json/azure.env
 set +a
 
-python3 -m md2json_api.cli convert /home/xuanzhi_ren/Pdf2jsonPipeline/Test/Convex-analysis-Ralph-Tyrell-Rockafellar-20260521165850/Convex-analysis-Ralph-Tyrell-Rockafellar.md \
+python3 -m md2json_api.cli convert /home/xuanzhi_ren/Pdf2jsonPipeline/Test/2014_Klenke_ProbabilityTheory-20260525132104/2014_Book_ProbabilityTheory.md \
   --backend azure \
   --model "$MD2JSON_MODEL" \
   --azure-endpoint "$AZURE_OPENAI_ENDPOINT" \
   --azure-api-version "$AZURE_OPENAI_API_VERSION" \
-  --prompt-profile auto \
+  --prompt-profile textbook \
   --structure-mode llm \
   --audit-mode llm \
-  --out-dir /home/xuanzhi_ren/Pdf2jsonPipeline/Test/Convex-analysis-Ralph-Tyrell-Rockafellar-20260521165850/output_json3
+  --resume \
+  --llm-timeout 1800 \
+  --out-dir /home/xuanzhi_ren/Pdf2jsonPipeline/Test/2014_Book_ProbabilityTheory/output_json
 ```
 
 如果一次长文档转换中途断开，使用同一个 `--out-dir` 并加 `--resume`：
