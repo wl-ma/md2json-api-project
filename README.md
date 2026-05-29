@@ -216,6 +216,22 @@ AZURE_OPENAI_API_KEY=your_api_key_here
 使用 OpenAI backend 时，配置 `MD2JSON_SERVER_BACKEND=openai` 和 `OPENAI_API_KEY`；不要在客户端请求、
 命令行参数或日志中发送 key。`MD2JSON_WORKERS=1` 是当前文件型输出和恢复机制下最稳妥的部署设置。
 
+如果需要开启原始 PDF 到 Markdown/JSON 的 Doc2X 前置阶段，额外配置：
+
+```text
+DOC2X_API_KEY=your_api_key_here
+DOC2X_BASE_URL=https://v2.doc2x.noedgeai.com
+DOC2X_MODEL=v3-2026
+DOC2X_TIMEOUT=600
+DOC2X_POLL_INTERVAL=2
+DOC2X_MAX_UPLOAD_BYTES=314572800
+DOC2X_WORKERS=1
+FULL_CONVERSION_WORKERS=1
+```
+
+Doc2X key 只能由服务端注入；客户端请求不得携带第三方 key。Doc2X 临时上传/下载 URL 带签名，
+服务不会在公开 API 响应中返回这些 URL。
+
 启动服务：
 
 ```bash
@@ -256,8 +272,44 @@ curl -X POST https://api.example.com/v1/conversions \
 | `POST` | `/v1/conversions/{job_id}/resume` | 将失败任务按安全缓存规则重新排队 |
 | `GET` | `/v1/conversions/{job_id}/result` | 成功任务的最终 item JSON |
 | `GET` | `/v1/conversions/{job_id}/quality` | 脱敏后的质量报告 |
+| `POST` | `/v1/doc2x-conversions` | 上传 PDF，返回 Doc2X 转换任务状态 |
+| `GET` | `/v1/doc2x-conversions/{job_id}` | Doc2X 任务状态和进度 |
+| `GET` | `/v1/doc2x-conversions/{job_id}/markdown` | 成功任务的 Doc2X Markdown |
+| `GET` | `/v1/doc2x-conversions/{job_id}/json` | 成功任务的 Doc2X 结构化 JSON |
+| `POST` | `/v1/full-conversions` | 上传 PDF，先 Doc2X 再 md2json，返回全流程任务状态 |
+| `GET` | `/v1/full-conversions/{job_id}` | 全流程任务状态、Doc2X 进度和 section 进度 |
+| `GET` | `/v1/full-conversions/{job_id}/result` | 成功任务的最终 item JSON |
+| `GET` | `/v1/full-conversions/{job_id}/quality` | 全流程 md2json 质量报告 |
 
 除 `/healthz` 外的接口都需要 bearer token。API 不提供 trace、源 Markdown 切片、内部错误栈或服务器路径。
+
+Doc2X 单阶段任务示例：
+
+```bash
+curl -X POST https://api.example.com/v1/doc2x-conversions \
+  -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
+  -F "file=@/path/to/input.pdf;type=application/pdf" \
+  -F "doc2x_model=v3-2026" \
+  -F "formula_mode=normal" \
+  -F "formula_level=0"
+```
+
+原始 PDF 全流程任务示例：
+
+```bash
+curl -X POST https://api.example.com/v1/full-conversions \
+  -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
+  -F "file=@/path/to/input.pdf;type=application/pdf" \
+  -F "doc2x_model=v3-2026" \
+  -F "formula_mode=normal" \
+  -F "prompt_profile=auto" \
+  -F "structure_mode=auto" \
+  -F "audit_mode=auto"
+```
+
+当前原始文件入口首版只接受 `.pdf`。Doc2X 单阶段作业使用独立 `doc2x_jobs.sqlite3` 和
+`doc2x/` 作业目录；全流程作业使用独立 `full_jobs.sqlite3` 和 `full/` 作业目录，不复用现有
+Markdown-only conversion store。
 
 ### `systemd` 示例
 
