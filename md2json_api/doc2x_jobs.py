@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .doc2x_client import Doc2XClient, Doc2XResult
-from .runtime import atomic_write_bytes
+from .runtime import atomic_write_bytes, atomic_write_json
 
 
 DOC2X_STATUSES = {"queued", "running", "succeeded", "failed"}
@@ -70,6 +71,7 @@ class Doc2XJobStore:
                     markdown_path TEXT,
                     json_path TEXT,
                     manifest_path TEXT,
+                    usage_path TEXT,
                     error_internal TEXT
                 )
                 """
@@ -116,16 +118,16 @@ class Doc2XJobStore:
                 (phase, progress, _now(), job_id),
             )
 
-    def complete(self, job_id: str, *, markdown_path: Path, json_path: Path, manifest_path: Path) -> None:
+    def complete(self, job_id: str, *, markdown_path: Path, json_path: Path, manifest_path: Path, usage_path: Path) -> None:
         with self._lock, self._connection:
             self._connection.execute(
                 """
                 UPDATE doc2x_jobs
                 SET status = 'succeeded', phase = 'completed', updated_at = ?,
-                    markdown_path = ?, json_path = ?, manifest_path = ?, error_internal = NULL
+                    markdown_path = ?, json_path = ?, manifest_path = ?, usage_path = ?, error_internal = NULL
                 WHERE id = ?
                 """,
-                (_now(), str(markdown_path), str(json_path), str(manifest_path), job_id),
+                (_now(), str(markdown_path), str(json_path), str(manifest_path), str(usage_path), job_id),
             )
 
     def close(self) -> None:
@@ -187,12 +189,17 @@ class Doc2XJobService:
         job = self._successful(job_id)
         return json.loads(Path(job["json_path"]).read_text(encoding="utf-8"))
 
+    def usage_payload(self, job_id: str) -> Any:
+        job = self._successful(job_id)
+        return json.loads(Path(job["usage_path"]).read_text(encoding="utf-8"))
+
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
         self.store.close()
 
     def _run_job(self, job_id: str) -> None:
         job = self._required(job_id)
+        started_at = time.monotonic()
         self.store.update_status(job_id, status="running", phase="saving_input")
         try:
             result = self.client.convert_file(
@@ -203,11 +210,33 @@ class Doc2XJobService:
                     job_id, phase=phase, progress=progress
                 ),
             )
+            usage_path = Path(job["output_dir"]) / "usage_summary.json"
+            atomic_write_json(
+                usage_path,
+                {
+                    "requests": 1,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "llm_elapsed_seconds": round(max(0.0, time.monotonic() - started_at), 6),
+                    "wall_clock_elapsed_seconds": round(max(0.0, time.monotonic() - started_at), 6),
+                    "phases": {
+                        "doc2x": {
+                            "requests": 1,
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "total_tokens": 0,
+                            "elapsed_seconds": round(max(0.0, time.monotonic() - started_at), 6),
+                        }
+                    },
+                },
+            )
             self.store.complete(
                 job_id,
                 markdown_path=result.markdown_path,
                 json_path=result.json_path,
                 manifest_path=result.manifest_path,
+                usage_path=usage_path,
             )
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"[:2000]

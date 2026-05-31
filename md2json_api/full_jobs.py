@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -15,7 +16,7 @@ from .converter import MarkdownJsonConverter
 from .doc2x_client import Doc2XClient
 from .doc2x_jobs import Doc2XConverter, validate_doc2x_options
 from .jobs import WorkerSettings, validate_options
-from .runtime import atomic_write_bytes
+from .runtime import atomic_write_bytes, atomic_write_json
 
 
 FULL_STATUSES = {"queued", "running", "succeeded", "failed"}
@@ -64,6 +65,7 @@ class FullJobStore:
                     doc2x_json_path TEXT,
                     result_path TEXT,
                     quality_path TEXT,
+                    usage_path TEXT,
                     error_internal TEXT
                 )
                 """
@@ -152,16 +154,16 @@ class FullJobStore:
                 ),
             )
 
-    def complete(self, job_id: str, *, result_path: Path, quality_path: Path) -> None:
+    def complete(self, job_id: str, *, result_path: Path, quality_path: Path, usage_path: Path) -> None:
         with self._lock, self._connection:
             self._connection.execute(
                 """
                 UPDATE full_jobs
                 SET status = 'succeeded', phase = 'completed', updated_at = ?,
-                    result_path = ?, quality_path = ?, error_internal = NULL
+                    result_path = ?, quality_path = ?, usage_path = ?, error_internal = NULL
                 WHERE id = ?
                 """,
-                (_now(), str(result_path), str(quality_path), job_id),
+                (_now(), str(result_path), str(quality_path), str(usage_path), job_id),
             )
 
     def close(self) -> None:
@@ -235,12 +237,17 @@ class FullConversionService:
             payload["source_file"] = job["input_name"]
         return payload
 
+    def usage_payload(self, job_id: str) -> Any:
+        job = self._successful(job_id)
+        return json.loads(Path(job["usage_path"]).read_text(encoding="utf-8"))
+
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
         self.store.close()
 
     def _run_job(self, job_id: str) -> None:
         job = self._required(job_id)
+        started_at = time.monotonic()
         self.store.update_status(job_id, status="running", phase="doc2x_starting")
         try:
             doc2x_result = self.doc2x_client.convert_file(
@@ -265,7 +272,33 @@ class FullConversionService:
             )
             result_path = result.out_dir / f"{result.source_file.stem}.json"
             quality_path = result.out_dir / "quality_report.json"
-            self.store.complete(job_id, result_path=result_path, quality_path=quality_path)
+            md2json_usage_path = result.out_dir / "usage_summary.json"
+            md2json_usage = json.loads(md2json_usage_path.read_text(encoding="utf-8")) if md2json_usage_path.exists() else {}
+            total_elapsed = round(max(0.0, time.monotonic() - started_at), 6)
+            doc2x_elapsed = round(max(0.0, total_elapsed - float(md2json_usage.get("wall_clock_elapsed_seconds", 0.0))), 6)
+            usage_path = Path(job["md2json_output_dir"]).parent / "usage_summary.json"
+            atomic_write_json(
+                usage_path,
+                {
+                    "requests": int(md2json_usage.get("requests", 0)) + 1,
+                    "input_tokens": int(md2json_usage.get("input_tokens", 0)),
+                    "output_tokens": int(md2json_usage.get("output_tokens", 0)),
+                    "total_tokens": int(md2json_usage.get("total_tokens", 0)),
+                    "llm_elapsed_seconds": round(float(md2json_usage.get("llm_elapsed_seconds", 0.0)), 6),
+                    "wall_clock_elapsed_seconds": total_elapsed,
+                    "phases": {
+                        "doc2x": {
+                            "requests": 1,
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "total_tokens": 0,
+                            "elapsed_seconds": doc2x_elapsed,
+                        },
+                        "md2json": md2json_usage,
+                    },
+                },
+            )
+            self.store.complete(job_id, result_path=result_path, quality_path=quality_path, usage_path=usage_path)
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"[:2000]
             self.store.update_status(job_id, status="failed", phase="failed", error_internal=message)

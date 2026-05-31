@@ -50,6 +50,7 @@ class Doc2XJobServiceTests(unittest.TestCase):
                 self.assertEqual(status["progress"], 100)
                 self.assertIn("Definition 1", service.markdown_text(created["job_id"]))
                 self.assertEqual(service.json_payload(created["job_id"])["pages"][0]["page_idx"], 0)
+                self.assertEqual(service.usage_payload(created["job_id"])["requests"], 1)
                 self.assertNotIn(temp, str(status))
             finally:
                 service.shutdown()
@@ -81,6 +82,7 @@ class Doc2XJobServiceTests(unittest.TestCase):
                 self.assertEqual(status["status"], "succeeded")
                 self.assertEqual(service.result_payload(created["job_id"])[0]["env"], "def")
                 self.assertEqual(service.quality_payload(created["job_id"])["source_file"], "source.pdf")
+                self.assertIn("md2json", service.usage_payload(created["job_id"])["phases"])
             finally:
                 service.shutdown()
 

@@ -6,6 +6,7 @@ from typing import Any
 
 from .models import ConversionResult, MarkdownSection
 from .quality import write_quality_report
+from .usage_summary import write_usage_summary
 
 
 def write_outputs(
@@ -21,6 +22,8 @@ def write_outputs(
     initial_section_items: list[list[dict[str, Any]]] | None = None,
     audit_results: list[dict[str, Any] | None] | None = None,
     quality_report: dict[str, Any] | None = None,
+    started_at: float | None = None,
+    ended_at: float | None = None,
 ) -> ConversionResult:
     out_dir.mkdir(parents=True, exist_ok=True)
     sections_dir = out_dir / "sections"
@@ -94,6 +97,7 @@ def write_outputs(
             }
         )
 
+    usage_summary = write_usage_summary(out_dir=out_dir, started_at=started_at, ended_at=ended_at)
     summary = {
         "sections_written": len(sections),
         "items_total": len(all_items),
@@ -103,6 +107,7 @@ def write_outputs(
         "back_matter_chars": len(back_matter),
         "split_warnings": split_warnings or [],
         "audit_enabled": audit_results is not None,
+        "usage_summary": usage_summary,
         "files": files,
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

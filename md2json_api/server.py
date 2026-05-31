@@ -272,6 +272,18 @@ def create_app(
     def conversion_quality(job_id: str) -> JSONResponse:
         return JSONResponse(_load_public_result(jobs, job_id, quality=True))
 
+    @app.get("/v1/conversions/{job_id}/usage", dependencies=[protected])
+    def conversion_usage(job_id: str) -> JSONResponse:
+        return JSONResponse(_load_public_usage(jobs.usage_payload, job_id))
+
+    @app.get("/v1/doc2x-conversions/{job_id}/usage", dependencies=[protected])
+    def doc2x_usage(job_id: str) -> JSONResponse:
+        return JSONResponse(_load_public_usage(doc2x_jobs.usage_payload, job_id))
+
+    @app.get("/v1/full-conversions/{job_id}/usage", dependencies=[protected])
+    def full_conversion_usage(job_id: str) -> JSONResponse:
+        return JSONResponse(_load_public_usage(full_jobs.usage_payload, job_id))
+
     return app
 
 
@@ -281,4 +293,13 @@ def _load_public_result(jobs: JobService, job_id: str, *, quality: bool):
     except JobNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
     except JobNotReadyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
+
+
+def _load_public_usage(loader, job_id: str):
+    try:
+        return loader(job_id)
+    except (JobNotFoundError, Doc2XJobNotFoundError, FullJobNotFoundError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
+    except (JobNotReadyError, Doc2XJobNotReadyError, FullJobNotReadyError) as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc

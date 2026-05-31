@@ -88,6 +88,12 @@ class Doc2XServerTests(unittest.TestCase):
                     )
                     self.assertEqual(doc2x_json.status_code, 200)
                     self.assertEqual(doc2x_json.json()["pages"][0]["page_idx"], 0)
+                    usage = client.get(
+                        f"/v1/doc2x-conversions/{job_id}/usage",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(usage.status_code, 200)
+                    self.assertEqual(usage.json()["requests"], 1)
                     self.assertNotIn(temp, json.dumps(terminal))
             finally:
                 markdown_service.shutdown()
@@ -134,6 +140,12 @@ class Doc2XServerTests(unittest.TestCase):
                     )
                     self.assertEqual(quality.status_code, 200)
                     self.assertEqual(quality.json()["source_file"], "source.pdf")
+                    usage = client.get(
+                        f"/v1/full-conversions/{job_id}/usage",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(usage.status_code, 200)
+                    self.assertIn("md2json", usage.json()["phases"])
             finally:
                 markdown_service.shutdown()
                 doc2x_service.shutdown()

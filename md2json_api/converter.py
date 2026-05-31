@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -113,6 +114,7 @@ class MarkdownJsonConverter:
         out_dir: Path | None = None,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> ConversionResult:
+        started_at = time.monotonic()
         input_md = input_md.expanduser().resolve()
         if out_dir is None:
             out_dir = input_md.with_name(f"{input_md.stem}_json")
@@ -148,6 +150,7 @@ class MarkdownJsonConverter:
                 cleanup_structure_trace_dir(trace_dir)
             self.structure_planner.set_trace_dir(trace_dir)
 
+        started_at = time.monotonic()
         source_text = input_md.read_text(encoding="utf-8")
         hard_split_plan = split_markdown_document(source_text, source_name=input_md.name)
         structure_candidates = build_structure_candidates(source_text)
@@ -242,6 +245,8 @@ class MarkdownJsonConverter:
                 all_items=all_items,
                 split_warnings=split_plan.warnings,
             ),
+            started_at=started_at,
+            ended_at=time.monotonic(),
         )
         write_structure_planner_artifacts(
             out_dir,

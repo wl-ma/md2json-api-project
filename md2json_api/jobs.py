@@ -101,6 +101,7 @@ class JobStore:
                     phase TEXT NOT NULL,
                     result_path TEXT,
                     quality_path TEXT,
+                    usage_path TEXT,
                     error_internal TEXT
                 )
                 """
@@ -169,16 +170,16 @@ class JobStore:
             )
         return cursor.rowcount == 1
 
-    def complete(self, job_id: str, *, result_path: Path, quality_path: Path) -> None:
+    def complete(self, job_id: str, *, result_path: Path, quality_path: Path, usage_path: Path) -> None:
         with self._lock, self._connection:
             self._connection.execute(
                 """
                 UPDATE jobs
                 SET status = 'succeeded', phase = 'completed', updated_at = ?,
-                    result_path = ?, quality_path = ?, error_internal = NULL
+                    result_path = ?, quality_path = ?, usage_path = ?, error_internal = NULL
                 WHERE id = ?
                 """,
-                (_now(), str(result_path), str(quality_path), job_id),
+                (_now(), str(result_path), str(quality_path), str(usage_path), job_id),
             )
 
     def close(self) -> None:
@@ -251,6 +252,10 @@ class JobService:
             payload["source_file"] = job["input_name"]
         return payload
 
+    def usage_payload(self, job_id: str) -> Any:
+        job = self._successful(job_id)
+        return json.loads(Path(job["usage_path"]).read_text(encoding="utf-8"))
+
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
         self.store.close()
@@ -267,7 +272,8 @@ class JobService:
             )
             result_path = result.out_dir / f"{result.source_file.stem}.json"
             quality_path = result.out_dir / "quality_report.json"
-            self.store.complete(job_id, result_path=result_path, quality_path=quality_path)
+            usage_path = result.out_dir / "usage_summary.json"
+            self.store.complete(job_id, result_path=result_path, quality_path=quality_path, usage_path=usage_path)
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"[:2000]
             self.store.update_status(job_id, status="failed", phase="failed", error_internal=message)
