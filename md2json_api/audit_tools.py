@@ -420,10 +420,22 @@ def _span_schema() -> dict[str, Any]:
                 "type": ["string", "null"],
                 "description": "Literal text where the span ends. Null means the span runs to the section end.",
             },
-            "start_occurrence": {"type": "integer", "description": "1-based occurrence of start_anchor."},
-            "end_occurrence": {"type": "integer", "description": "1-based occurrence of end_anchor, ignored when null."},
-            "include_start": {"type": "boolean"},
-            "include_end": {"type": "boolean"},
+            "start_occurrence": {
+                "type": "integer",
+                "description": "1-based occurrence of start_anchor from the beginning of the section.",
+            },
+            "end_occurrence": {
+                "type": "integer",
+                "description": "1-based occurrence of end_anchor from the beginning of the section, ignored when null.",
+            },
+            "include_start": {
+                "type": "boolean",
+                "description": "True copies the full start_anchor into the field; false starts after the full start_anchor.",
+            },
+            "include_end": {
+                "type": "boolean",
+                "description": "True copies the full end_anchor into the field; false stops before the full end_anchor.",
+            },
         },
         "required": ["start_anchor", "end_anchor", "start_occurrence", "end_occurrence", "include_start", "include_end"],
     }
@@ -474,9 +486,11 @@ def _extract_span_from_source(
     if not start_anchor:
         return {"found": False, "error": "empty start_anchor"}
     search_start = max(0, min(len(section.text), int(search_start)))
-    start_anchor_pos = _find_nth(section.text, start_anchor, start_occurrence, start=search_start)
+    start_anchor_pos = _find_nth(section.text, start_anchor, start_occurrence, start=0)
     if start_anchor_pos is None:
         return {"found": False, "error": f"start_anchor not found: {start_anchor[:80]!r}"}
+    if start_anchor_pos < search_start:
+        return {"found": False, "error": "start_anchor occurrence resolved before search_start"}
     start = start_anchor_pos if include_start else start_anchor_pos + len(start_anchor)
 
     if end_anchor is None:

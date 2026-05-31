@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from md2json_api.converter import normalize_items
+from md2json_api.converter import ConverterConfig, MarkdownJsonConverter, normalize_items
 from md2json_api.models import MarkdownSection, SectionContext
 
 
@@ -76,6 +76,82 @@ class ConverterLabelTests(unittest.TestCase):
         self.assertEqual(items[4]["label"], "Algorithm 1")
         self.assertEqual(items[3]["dependencies"], ["Theorem 6.1"])
         self.assertEqual(items[4]["dependencies"], ["Theorem 6.1"])
+
+
+def test_converter_hands_bad_span_trace_to_audit(tmp_path) -> None:
+    input_md = tmp_path / "book.md"
+    input_md.write_text("## 1 Test\n\nTheorem 1. A statement.\n", encoding="utf-8")
+
+    converter = MarkdownJsonConverter(
+        ConverterConfig(
+            backend="mock",
+            audit_mode="llm",
+            structure_mode="hard",
+        )
+    )
+    auditor = _RecordingAuditRepairer()
+    converter.extractor = _BadSpanExtractor()
+    converter.auditor = auditor
+
+    result = converter.convert(input_md, tmp_path / "out")
+
+    assert result.items_total == 1
+    assert auditor.current_items == []
+    assert auditor.extraction_trace is not None
+    assert auditor.extraction_trace["span_builder_status"] == "failed"
+    assert "missing content_span" in auditor.extraction_trace["span_builder_error"]
+    assert auditor.extraction_trace["span_builder"][0]["content"]["ok"] is False
+
+
+class _BadSpanExtractor:
+    def extract_section(self, section: MarkdownSection) -> list[dict]:
+        return [
+            {
+                "label": "Theorem 1",
+                "env": "thm",
+                "number_components": ["1"],
+                "dependencies": [],
+                "source_order_anchor": "Theorem 1.",
+                "proof_span": None,
+            }
+        ]
+
+
+class _RecordingAuditRepairer:
+    def __init__(self) -> None:
+        self.current_items: list[dict] | None = None
+        self.extraction_trace: dict | None = None
+
+    def audit_repair_section(
+        self,
+        section: MarkdownSection,
+        current_items: list[dict],
+        *,
+        extraction_trace: dict | None = None,
+    ) -> dict:
+        self.current_items = current_items
+        self.extraction_trace = extraction_trace
+        return {
+            "audit_markdown": "Recovered from bad initial span.",
+            "patch_candidate": {
+                "section_id": f"section{section.index:02d}",
+                "overall_assessment": "major repair",
+                "actions": [],
+                "open_questions": [],
+            },
+            "repaired_items": [
+                {
+                    "index": 1,
+                    "label": "Theorem 1",
+                    "env": "thm",
+                    "number_components": ["1"],
+                    "context": section.context.as_json(),
+                    "content": "Theorem 1. A statement.",
+                    "dependencies": [],
+                    "proof": None,
+                }
+            ],
+        }
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ Return one JSON object with exactly one key, "items", whose value is an array of
 """
 
 
-FIELD_SPEC = """Field specification for every item:
+FINAL_ITEM_FIELD_SPEC = """Field specification for every final item:
 
 - index:
   1-based order of the item inside the current supplied section. Preserve source order.
@@ -31,7 +31,6 @@ FIELD_SPEC = """Field specification for every item:
   Use source-aware labels.
   If the source item has an explicit printed number or label, the label must preserve that source number in canonical English form: "<Type> <source_number>". Examples: "Theorem 6.1", "Definition 1.2.4", "Corollary 6.1.1", "Algorithm 1". This label must match number_components joined by "." and must not use the local extraction index.
   If the item is inferred from unnumbered prose or has no explicit printed source number, use a synthetic label that cannot be confused with source numbering: "<Type> <section_number>-extra-<local_synthetic_index>", for example "Definition 6-extra-1" or "Remark 4.2-extra-1". These synthetic items must not consume or shift explicit source numbers.
-  The converter will validate labels later, but fill this field with the same source-aware rule so raw API traces are useful.
 
 - env:
   Use only one allowed value. Map source labels conservatively:
@@ -55,6 +54,54 @@ FIELD_SPEC = """Field specification for every item:
 """
 
 
+EXTRACTION_FIELD_SPEC = """Field specification for every extraction item:
+
+- label:
+  Use source-aware labels.
+  If the source item has an explicit printed number or label, the label must preserve that source number in canonical English form: "<Type> <source_number>". Examples: "Theorem 6.1", "Definition 1.2.4", "Corollary 6.1.1", "Algorithm 1". This label must match number_components joined by "." and must not use the local extraction index.
+  If the item is inferred from unnumbered prose or has no explicit printed source number, use a synthetic label that cannot be confused with source numbering: "<Type> <section_number>-extra-<local_synthetic_index>", for example "Definition 6-extra-1" or "Remark 4.2-extra-1". These synthetic items must not consume or shift explicit source numbers.
+  The converter will validate labels later, but fill this field with the same source-aware rule so raw API traces are useful.
+
+- env:
+  Use only one allowed value. Map source labels conservatively:
+  Definition/定义 -> def; Theorem/定理 -> thm; Proposition/命题 -> prop; Lemma/引理 -> lemma; Corollary/推论 -> cor; Example/例 -> example; Exercise/练习 -> exercise; Remark/注/注记 -> remark; Algorithm/算法 -> algorithm; Assumption/假设 -> assumption; Claim/断言 -> claim; Conjecture/猜想 -> conjecture; Problem/问题 -> problem; Question -> question; Notation/记号 -> notation.
+
+- number_components:
+  Preserve explicit source numbering when it exists. Examples: "Theorem 3." -> ["3"]; "Definition 1.2.4" -> ["1", "2", "4"]; "Theorem A.1" -> ["A", "1"]; unnumbered items -> [].
+
+- dependencies:
+  Default to []. Fill only when the source explicitly names a dependency and the name is recoverable without guessing, such as "by Theorem 2.1" or "using Lemma 3.4". Use the same canonical source-aware labels as label, so an explicit dependency on "Theorem 6.1" stays "Theorem 6.1" rather than a synthetic local-index label. Do not infer hidden dependencies.
+  Treat dependencies as source-internal mathematical item labels only. Do not put bibliography citations, bracketed references like "[12]", author-year references, book/paper titles, page references, or theorem numbers from other works into dependencies.
+
+- source_order_anchor:
+  A short exact substring at or very near the item start. Use it to identify the item in source order.
+
+- content_span:
+  A literal source span object for the item statement/content. The local converter copies content from this span; do not output content text yourself.
+  Use fields: start_anchor, end_anchor, start_occurrence, end_occurrence, include_start, include_end.
+  The content span must contain the full statement/content and stop before the explicit proof marker or next item.
+
+- proof_span:
+  Null unless a proof block is explicitly marked. When a proof boundary is explicit, provide a literal source span object for the proof body only.
+  The local converter resolves proof_span after content_span and copies proof from the Markdown; do not output proof text yourself.
+"""
+
+
+FIELD_SPEC = EXTRACTION_FIELD_SPEC
+
+
+SPAN_INCLUSION_RULES = """Span inclusion rules:
+
+- start_occurrence and end_occurrence are 1-based counts from the beginning of the supplied Markdown section.
+- include_start/include_end control whether the full anchor string itself is copied into the field.
+- If include_start is false, the copied text starts after the entire start_anchor. Therefore, do not put proof-body words or formulas inside a start_anchor that will be excluded.
+- If include_end is false, the copied text stops before the entire end_anchor. Therefore, do not put statement/proof text that must be preserved inside an excluded end_anchor.
+- For content_span, normally use include_start=true so the item label/opening statement is preserved. Use include_end=false when the end_anchor is a proof marker or the next item boundary.
+- For proof_span, use include_start=false only when start_anchor is just the explicit proof marker to remove, such as "Proof.", "Proof of Lemma 2.", or "证明". If start_anchor includes the first actual proof-body words, set include_start=true.
+- For proof_span, normally use include_end=false when the end_anchor is the next item boundary or following non-proof prose.
+"""
+
+
 COMMON_RULES = """Extraction rules:
 
 - Stay strictly inside the supplied section/chunk. Do not pull material from neighboring sections.
@@ -75,47 +122,15 @@ COMMON_RULES = """Extraction rules:
 
 FEW_SHOT_EXAMPLES = """Few-shot examples:
 
-Example 1: central section-opening prose
-
-Input section:
-```md
-### 4.2 Invariant measure on a compact group
-
-In the study of linear representations of a compact group, one uses an invariant measure on the group.
-```
-
-Output:
-```json
-{
-  "items": [
-    {
-      "index": 1,
-      "label": "Definition 4.2-extra-1",
-      "env": "def",
-      "number_components": [],
-      "context": {
-        "chapter": "Chapter 4. Compact groups",
-        "section": "4.2. Invariant measure on a compact group",
-        "chapter_number": "4",
-        "section_number": "4.2"
-      },
-      "content": "### 4.2 Invariant measure on a compact group\n\nIn the study of linear representations of a compact group, one uses an invariant measure on the group.",
-      "dependencies": [],
-      "proof": null
-    }
-  ]
-}
-```
-
-Example 2: theorem with explicit proof
+Example 1: theorem with explicit proof
 
 Input section:
 ```md
 ### 1.3 Subrepresentations
 
-Theorem 1. Let $\\rho: G \\to GL(V)$ be a linear representation of $G$ in $V$ and let $W$ be a vector subspace of $V$ stable under $G$. Then there exists a complement $W^0$ of $W$ in $V$ which is stable under $G$.
+Theorem 1. Let $\\rho: G \\to GL(V)$ be a linear representation of $G$ in $V$ and let $W$ be stable under $G$.
 
-Proof. Let $W'$ be an arbitrary complement of $W$ in $V$ ...
+Proof. Let $W'$ be an arbitrary complement of $W$ in $V$.
 ```
 
 Output:
@@ -123,25 +138,33 @@ Output:
 {
   "items": [
     {
-      "index": 1,
       "label": "Theorem 1",
       "env": "thm",
       "number_components": ["1"],
-      "context": {
-        "chapter": "Chapter 1. Generalities on linear representations",
-        "section": "1.3. Subrepresentations",
-        "chapter_number": "1",
-        "section_number": "1.3"
-      },
-      "content": "Theorem 1. Let $\\rho: G \\to GL(V)$ be a linear representation of $G$ in $V$ and let $W$ be a vector subspace of $V$ stable under $G$. Then there exists a complement $W^0$ of $W$ in $V$ which is stable under $G$.",
       "dependencies": [],
-      "proof": "Let $W'$ be an arbitrary complement of $W$ in $V$ ..."
+      "source_order_anchor": "Theorem 1. Let $\\rho: G \\to GL(V)$",
+      "content_span": {
+        "start_anchor": "Theorem 1. Let $\\rho: G \\to GL(V)$",
+        "end_anchor": "Proof.",
+        "start_occurrence": 1,
+        "end_occurrence": 1,
+        "include_start": true,
+        "include_end": false
+      },
+      "proof_span": {
+        "start_anchor": "Proof.",
+        "end_anchor": null,
+        "start_occurrence": 1,
+        "end_occurrence": 1,
+        "include_start": false,
+        "include_end": false
+      }
     }
   ]
 }
 ```
 
-Example 3: opening prose plus exercise
+Example 2: opening prose plus exercise
 
 Input section:
 ```md
@@ -157,136 +180,36 @@ Output:
 {
   "items": [
     {
-      "index": 1,
       "label": "Definition 5.7-extra-1",
       "env": "def",
       "number_components": [],
-      "context": {
-        "chapter": "Chapter 5. Examples",
-        "section": "5.7. The alternating group A4",
-        "chapter_number": "5",
-        "section_number": "5.7"
-      },
-      "content": "### 5.7 The alternating group A4\n\nThis is the group of even permutations of four letters.",
       "dependencies": [],
-      "proof": null
+      "source_order_anchor": "### 5.7 The alternating group A4",
+      "content_span": {
+        "start_anchor": "### 5.7 The alternating group A4",
+        "end_anchor": "Exercise 5.4.",
+        "start_occurrence": 1,
+        "end_occurrence": 1,
+        "include_start": true,
+        "include_end": false
+      },
+      "proof_span": null
     },
     {
-      "index": 2,
       "label": "Exercise 5.4",
       "env": "exercise",
       "number_components": ["5", "4"],
-      "context": {
-        "chapter": "Chapter 5. Examples",
-        "section": "5.7. The alternating group A4",
-        "chapter_number": "5",
-        "section_number": "5.7"
-      },
-      "content": "Exercise 5.4. Set $\\theta(1)=...$",
       "dependencies": [],
-      "proof": null
-    }
-  ]
-}
-```
-
-Example 4: paper section with theorem/proof and algorithm
-
-Input section:
-```md
-### 2.1 Uniform matroids
-
-Theorem 2.3. Suppose that $M$ is uniform. Then there exists a function $\\delta(i,r,n)$ satisfying $P_{approx}$.
-
-Proof. Consider some $X \\subseteq \\{1,\\ldots,i-1\\}$ ...
-
-Algorithm 1: Algorithm to compute $\\delta(i,r)$ for all $i$ and $r$.
-```
-
-Output:
-```json
-{
-  "items": [
-    {
-      "index": 1,
-      "label": "Theorem 2.3",
-      "env": "thm",
-      "number_components": ["2", "3"],
-      "context": {
-        "chapter": "Interdiction of minimum spanning trees and other matroid bases",
-        "section": "2.1. Uniform matroids",
-        "chapter_number": "",
-        "section_number": "2.1"
+      "source_order_anchor": "Exercise 5.4.",
+      "content_span": {
+        "start_anchor": "Exercise 5.4.",
+        "end_anchor": null,
+        "start_occurrence": 1,
+        "end_occurrence": 1,
+        "include_start": true,
+        "include_end": false
       },
-      "content": "Theorem 2.3. Suppose that $M$ is uniform. Then there exists a function $\\delta(i,r,n)$ satisfying $P_{approx}$.",
-      "dependencies": [],
-      "proof": "Consider some $X \\subseteq \\{1,\\ldots,i-1\\}$ ..."
-    },
-    {
-      "index": 2,
-      "label": "Algorithm 1",
-      "env": "algorithm",
-      "number_components": ["1"],
-      "context": {
-        "chapter": "Interdiction of minimum spanning trees and other matroid bases",
-        "section": "2.1. Uniform matroids",
-        "chapter_number": "",
-        "section_number": "2.1"
-      },
-      "content": "Algorithm 1: Algorithm to compute $\\delta(i,r)$ for all $i$ and $r$.",
-      "dependencies": [],
-      "proof": null
-    }
-  ]
-}
-```
-
-Example 5: Chinese mathematical section
-
-Input section:
-```md
-### 1.2 Krull 赋值与完备化
-
-定义 1.2.4 (W. Krull) 设 $A$ 为环, $(\\Gamma, \\leq)$ 为全序交换群. 环 $A$ 上以 $\\Gamma$ 为值群的赋值意谓满足下述性质之映射 $v : A \\to \\Gamma \\sqcup \\{\\infty\\}$ ...
-
-命题 1.2.9 设 $v : K \\to \\Gamma \\sqcup \\{\\infty\\}$ 为域 $K$ 的赋值,则 $K$ 对此成为拓扑域.
-
-证明 由于 $x^{-1} - y^{-1} = (xy)^{-1}(y-x)$ ...
-```
-
-Output:
-```json
-{
-  "items": [
-    {
-      "index": 1,
-      "label": "Definition 1.2.4",
-      "env": "def",
-      "number_components": ["1", "2", "4"],
-      "context": {
-        "chapter": "Chapter 1. 域的赋值",
-        "section": "1.2. Krull 赋值与完备化",
-        "chapter_number": "1",
-        "section_number": "1.2"
-      },
-      "content": "定义 1.2.4 (W. Krull) 设 $A$ 为环, $(\\Gamma, \\leq)$ 为全序交换群. 环 $A$ 上以 $\\Gamma$ 为值群的赋值意谓满足下述性质之映射 $v : A \\to \\Gamma \\sqcup \\{\\infty\\}$ ...",
-      "dependencies": [],
-      "proof": null
-    },
-    {
-      "index": 2,
-      "label": "Proposition 1.2.9",
-      "env": "prop",
-      "number_components": ["1", "2", "9"],
-      "context": {
-        "chapter": "Chapter 1. 域的赋值",
-        "section": "1.2. Krull 赋值与完备化",
-        "chapter_number": "1",
-        "section_number": "1.2"
-      },
-      "content": "命题 1.2.9 设 $v : K \\to \\Gamma \\sqcup \\{\\infty\\}$ 为域 $K$ 的赋值,则 $K$ 对此成为拓扑域.",
-      "dependencies": [],
-      "proof": "由于 $x^{-1} - y^{-1} = (xy)^{-1}(y-x)$ ..."
+      "proof_span": null
     }
   ]
 }
@@ -437,7 +360,8 @@ def build_system_prompt(prompt_profile: str = "auto", section: MarkdownSection |
     return "\n\n".join(
         [
             COMMON_INTRO.format(allowed_envs=", ".join(ALLOWED_ENVS)),
-            FIELD_SPEC,
+            EXTRACTION_FIELD_SPEC,
+            SPAN_INCLUSION_RULES,
             COMMON_RULES,
             FEW_SHOT_EXAMPLES,
             PROFILE_PROMPTS[resolved],
@@ -452,7 +376,7 @@ def build_section_prompt(section: MarkdownSection, prompt_profile: str = "auto")
 
 Prompt profile: {resolved}
 
-Context to use on every item:
+Context to use when choosing source-aware labels:
 - chapter: {ctx.chapter}
 - chapter_number: {ctx.chapter_number}
 - section: {ctx.section}
@@ -462,7 +386,8 @@ Extraction discipline:
 - Treat this as one source section/chunk produced by an external splitter.
 - Prefer omission over noisy extraction for non-mathematical connective prose.
 - Preserve source order.
-- The converter will validate index, context, and label after parsing; still fill label with the source-aware rule because raw API traces should be meaningful.
+- The converter will validate context and labels after parsing; still fill label with the source-aware rule because raw API traces should be meaningful.
+- Output only item metadata and source spans. Do not output content or proof text.
 
 Markdown section:
 
@@ -477,7 +402,8 @@ def build_audit_repair_system_prompt(prompt_profile: str = "auto", section: Mark
     return "\n\n".join(
         [
             "You audit and repair structured JSON extracted from mathematical Markdown.",
-            FIELD_SPEC,
+            FINAL_ITEM_FIELD_SPEC,
+            SPAN_INCLUSION_RULES,
             COMMON_RULES,
             AUDIT_RULES,
             AUDIT_FEW_SHOT,
@@ -491,10 +417,22 @@ def build_audit_repair_prompt(
     section: MarkdownSection,
     current_items: list[dict[str, Any]],
     prompt_profile: str = "auto",
+    extraction_trace: dict[str, Any] | None = None,
 ) -> str:
     ctx = section.context
     resolved = resolve_prompt_profile(prompt_profile, section)
     current_json = json.dumps(current_items, ensure_ascii=False, indent=2)
+    extraction_trace_block = ""
+    if extraction_trace is not None:
+        extraction_trace_json = json.dumps(extraction_trace, ensure_ascii=False, indent=2)
+        extraction_trace_block = f"""
+Initial Extraction Span Trace:
+
+```json
+{extraction_trace_json}
+```
+
+"""
     return f"""Audit and repair this one section.
 
 Prompt profile: {resolved}
@@ -519,6 +457,7 @@ Current canonical JSON items:
 {current_json}
 ```
 
+{extraction_trace_block}\
 Produce:
 1. audit_markdown
 2. patch_candidate

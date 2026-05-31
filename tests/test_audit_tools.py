@@ -178,7 +178,7 @@ class AuditSourceToolTests(unittest.TestCase):
                         "proof_span": {
                             "start_anchor": "In general,",
                             "end_anchor": None,
-                            "start_occurrence": 1,
+                            "start_occurrence": 2,
                             "end_occurrence": 1,
                             "include_start": True,
                             "include_end": False,

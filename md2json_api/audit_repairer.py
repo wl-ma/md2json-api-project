@@ -23,6 +23,8 @@ class NoopSectionAuditRepairer:
         self,
         section: MarkdownSection,
         current_items: list[dict[str, Any]],
+        *,
+        extraction_trace: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return _noop_payload(section, current_items)
 
@@ -40,12 +42,22 @@ class MockSectionAuditRepairer(NoopSectionAuditRepairer):
         self,
         section: MarkdownSection,
         current_items: list[dict[str, Any]],
+        *,
+        extraction_trace: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": build_audit_repair_system_prompt(self.prompt_profile, section)},
-                {"role": "user", "content": build_audit_repair_prompt(section, current_items, self.prompt_profile)},
+                {
+                    "role": "user",
+                    "content": build_audit_repair_prompt(
+                        section,
+                        current_items,
+                        self.prompt_profile,
+                        extraction_trace=extraction_trace,
+                    ),
+                },
             ],
             "response_format": chat_audit_repair_json_schema_response_format(),
         }
@@ -118,6 +130,8 @@ class OpenAISectionAuditRepairer:
         self,
         section: MarkdownSection,
         current_items: list[dict[str, Any]],
+        *,
+        extraction_trace: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         cached = _read_cached_audit_response(self.trace_dir, section)
         if cached is not None:
@@ -127,6 +141,7 @@ class OpenAISectionAuditRepairer:
             model=self.model,
             section=section,
             current_items=current_items,
+            extraction_trace=extraction_trace,
             prompt_profile=self.prompt_profile,
             max_output_tokens=self.max_output_tokens,
             max_tokens_key="max_completion_tokens",
@@ -204,6 +219,8 @@ class AzureChatSectionAuditRepairer:
         self,
         section: MarkdownSection,
         current_items: list[dict[str, Any]],
+        *,
+        extraction_trace: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         cached = _read_cached_audit_response(self.trace_dir, section)
         if cached is not None:
@@ -217,6 +234,7 @@ class AzureChatSectionAuditRepairer:
             model=self.model,
             section=section,
             current_items=current_items,
+            extraction_trace=extraction_trace,
             prompt_profile=self.prompt_profile,
             max_output_tokens=self.max_output_tokens,
             max_tokens_key="max_tokens",
@@ -277,6 +295,7 @@ def _run_chat_tool_audit(
     model: str,
     section: MarkdownSection,
     current_items: list[dict[str, Any]],
+    extraction_trace: dict[str, Any] | None,
     prompt_profile: str,
     max_output_tokens: int | None,
     max_tokens_key: str,
@@ -292,7 +311,12 @@ def _run_chat_tool_audit(
         },
         {
             "role": "user",
-            "content": build_audit_repair_prompt(section, current_items, prompt_profile)
+            "content": build_audit_repair_prompt(
+                section,
+                current_items,
+                prompt_profile,
+                extraction_trace=extraction_trace,
+            )
             + "\n\n"
             + _TOOL_AUDIT_USER_INSTRUCTIONS,
         },
@@ -388,7 +412,7 @@ _TOOL_AUDIT_SYSTEM_INSTRUCTIONS = """Audit source tool workflow:
 - You, not the tools, decide which mathematical items exist in the Markdown section.
 - First call list_source_item_labels with the labels/items you identify by reading the Markdown. The tool only records your list and checks literal anchors; it does not mine labels with hard-coded theorem-name rules.
 - Use search_source and extract_source_span to locate exact text spans for any content/proof that needs repair.
-- Choose anchors that are long enough to be unique in the section: prefer the full visible item heading plus the opening words/formula for content spans, and for proof spans use the explicit proof marker plus the item label and nearby distinctive words/formulas when available. Avoid generic anchors such as "In general," unless search_source shows the intended occurrence is unambiguous.
+- Choose anchors that are long enough to be unique in the section: prefer the full visible item heading plus the opening words/formula for content spans. For proof spans, remember that include_start=false excludes the entire start_anchor; use it only when start_anchor is just the proof marker to remove, not proof-body text. If you include the first proof-body words in start_anchor, set include_start=true. Avoid generic anchors such as "In general," unless search_source shows the intended occurrence is unambiguous.
 - Make source_order_anchor the exact visible heading or opening sentence of the item itself, not a nearby note, preliminary remark, or proof marker.
 - In build_repaired_items, proof_span anchors are resolved after the item's content_span, and content/proof spans must not cross the next item's source_order_anchor.
 - Dependencies are source-internal mathematical item labels only; do not put bibliography citations, bracketed references, author-year references, book/paper titles, page references, or theorem numbers from other works into dependencies.

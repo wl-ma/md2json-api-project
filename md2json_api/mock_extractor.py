@@ -33,7 +33,7 @@ class MockApiSectionExtractor:
             "response_format": chat_json_schema_response_format(),
         }
         local_items = self.local.extract_section(section)
-        api_items = [_as_api_item(item) for item in local_items]
+        api_items = [_as_api_item(item, section) for item in local_items]
         response_payload = {"items": api_items}
         self._write_trace(section, request_payload, response_payload)
         return response_payload["items"]
@@ -65,10 +65,34 @@ class MockApiSectionExtractor:
         )
 
 
-def _as_api_item(item: dict[str, Any]) -> dict[str, Any]:
+def _as_api_item(item: dict[str, Any], section: MarkdownSection) -> dict[str, Any]:
     api_item = copy.deepcopy(item)
-    api_item["number_components"] = [str(part) for part in api_item.get("number_components", [])]
-    api_item["dependencies"] = [str(dep) for dep in api_item.get("dependencies", [])]
-    if api_item.get("proof") is not None:
-        api_item["proof"] = str(api_item["proof"])
-    return api_item
+    content = str(api_item.get("content") or "")
+    proof = api_item.get("proof")
+    return {
+        "label": str(api_item.get("label") or ""),
+        "env": api_item.get("env"),
+        "number_components": [str(part) for part in api_item.get("number_components", [])],
+        "dependencies": [str(dep) for dep in api_item.get("dependencies", [])],
+        "source_order_anchor": content,
+        "content_span": _span_for_text(section.text, content),
+        "proof_span": _span_for_text(section.text, str(proof), occurrence=1) if proof is not None else None,
+    }
+
+
+def _span_for_text(source: str, text: str, *, occurrence: int | None = None) -> dict[str, Any]:
+    if not text:
+        raise RuntimeError("Mock API item cannot build an empty source span.")
+    start = source.find(text)
+    if start < 0:
+        raise RuntimeError(f"Mock API item text is not present in the source: {text[:80]!r}")
+    if occurrence is None:
+        occurrence = source[:start].count(text) + 1
+    return {
+        "start_anchor": text,
+        "end_anchor": text,
+        "start_occurrence": occurrence,
+        "end_occurrence": occurrence,
+        "include_start": True,
+        "include_end": True,
+    }

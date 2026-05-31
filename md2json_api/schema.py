@@ -45,6 +45,56 @@ ITEM_SCHEMA: dict = {
 }
 
 
+SPAN_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "start_anchor": {"type": "string"},
+        "end_anchor": {"type": ["string", "null"]},
+        "start_occurrence": {"type": "integer"},
+        "end_occurrence": {"type": "integer"},
+        "include_start": {"type": "boolean"},
+        "include_end": {"type": "boolean"},
+    },
+    "required": ["start_anchor", "end_anchor", "start_occurrence", "end_occurrence", "include_start", "include_end"],
+}
+
+
+EXTRACTION_SPAN_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "label": {"type": "string"},
+        "env": {"type": "string", "enum": list(ALLOWED_ENVS)},
+        "number_components": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "dependencies": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "source_order_anchor": {"type": "string"},
+        "content_span": SPAN_SCHEMA,
+        "proof_span": {
+            "type": ["object", "null"],
+            "additionalProperties": False,
+            "properties": SPAN_SCHEMA["properties"],
+            "required": SPAN_SCHEMA["required"],
+        },
+    },
+    "required": [
+        "label",
+        "env",
+        "number_components",
+        "dependencies",
+        "source_order_anchor",
+        "content_span",
+        "proof_span",
+    ],
+}
+
+
 SECTION_ITEMS_SCHEMA: dict = {
     "type": "object",
     "additionalProperties": False,
@@ -52,6 +102,19 @@ SECTION_ITEMS_SCHEMA: dict = {
         "items": {
             "type": "array",
             "items": ITEM_SCHEMA,
+        }
+    },
+    "required": ["items"],
+}
+
+
+SECTION_ITEM_SPANS_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": EXTRACTION_SPAN_ITEM_SCHEMA,
         }
     },
     "required": ["items"],
@@ -194,7 +257,7 @@ def responses_json_schema_format(name: str = "math_section_items") -> dict:
         "type": "json_schema",
         "name": name,
         "strict": True,
-        "schema": SECTION_ITEMS_SCHEMA,
+        "schema": SECTION_ITEM_SPANS_SCHEMA,
     }
 
 
@@ -204,7 +267,7 @@ def chat_json_schema_response_format(name: str = "math_section_items") -> dict:
         "json_schema": {
             "name": name,
             "strict": True,
-            "schema": SECTION_ITEMS_SCHEMA,
+            "schema": SECTION_ITEM_SPANS_SCHEMA,
         },
     }
 

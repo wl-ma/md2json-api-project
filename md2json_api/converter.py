@@ -13,6 +13,7 @@ from .audit_repairer import (
     OpenAISectionAuditRepairer,
 )
 from .azure_extractor import AzureChatSectionExtractor
+from .extraction_spans import SpanBuildError, build_items_from_source_spans
 from .local_extractor import LocalSectionExtractor
 from .mock_extractor import MockApiSectionExtractor
 from .models import ALLOWED_ENVS, ENV_ALIASES, ENV_DISPLAY, ConversionResult, MarkdownSection
@@ -61,7 +62,13 @@ class SectionExtractor(Protocol):
 
 
 class SectionAuditRepairer(Protocol):
-    def audit_repair_section(self, section: MarkdownSection, current_items: list[dict[str, Any]]) -> dict[str, Any]:
+    def audit_repair_section(
+        self,
+        section: MarkdownSection,
+        current_items: list[dict[str, Any]],
+        *,
+        extraction_trace: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         ...
 
 
@@ -173,12 +180,33 @@ class MarkdownJsonConverter:
 
         for section in sections:
             raw_items = self.extractor.extract_section(section)
-            initial_normalized = normalize_items(raw_items, section, global_start=1)
+            extraction_trace: dict[str, Any] | None = None
+            if self.config.backend == "local":
+                initial_raw_items = raw_items
+            else:
+                try:
+                    span_build = build_items_from_source_spans(raw_items, section)
+                except SpanBuildError as exc:
+                    if not audit_enabled(self.config):
+                        raise
+                    initial_raw_items = []
+                    extraction_trace = copy.deepcopy(exc.diagnostics)
+                    extraction_trace["span_builder_status"] = "failed"
+                    extraction_trace["span_builder_error"] = str(exc)
+                else:
+                    initial_raw_items = span_build.items
+                    extraction_trace = span_build.diagnostics
+                    extraction_trace["span_builder_status"] = "ok"
+            initial_normalized = normalize_items(initial_raw_items, section, global_start=1)
             initial_section_items.append(initial_normalized)
             audit_result: dict[str, Any] | None = None
             repaired_raw_items: list[dict[str, Any]] = initial_normalized
             if audit_enabled(self.config):
-                audit_result = self.auditor.audit_repair_section(section, initial_normalized)
+                audit_result = self.auditor.audit_repair_section(
+                    section,
+                    initial_normalized,
+                    extraction_trace=extraction_trace,
+                )
                 repaired_raw_items = audit_result.get("repaired_items") or []
             audit_results.append(audit_result)
             normalized_local = normalize_items(repaired_raw_items, section, global_start=len(all_items) + 1)
