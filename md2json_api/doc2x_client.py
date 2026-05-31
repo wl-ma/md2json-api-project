@@ -183,9 +183,14 @@ class Doc2XClient:
             with request.urlopen(req, timeout=self.settings.timeout) as response:
                 body = response.read().decode("utf-8")
         except error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")[:1000]
+            except Exception:
+                body = ""
             if exc.code == 429:
-                raise RuntimeError("Doc2X rate limit exceeded.") from exc
-            raise RuntimeError(f"Doc2X request failed with HTTP {exc.code}.") from exc
+                raise RuntimeError(f"Doc2X rate limit exceeded: {body}") from exc
+            raise RuntimeError(f"Doc2X request failed with HTTP {exc.code}: {body}") from exc
         except error.URLError as exc:
             raise RuntimeError("Doc2X request failed.") from exc
         try:
