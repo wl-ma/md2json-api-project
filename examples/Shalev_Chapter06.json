@@ -1,0 +1,516 @@
+[
+  {
+    "index": 1,
+    "label": "Remark 6-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6"
+    },
+    "content": "In the previous chapter, we decomposed the error of the ERM_H rule into approximation error and estimation error. The approximation error depends on the fit of our prior knowledge (as reflected by the choice of the hypothesis class H) to the underlying unknown distribution. In contrast, the definition of PAC learnability requires that the estimation error would be bounded uniformly over all distributions. Our current goal is to figure out which classes H are PAC learnable, and to characterize exactly the sample complexity of learning a given hypothesis class. So far we have seen that finite classes are learnable, but that the class of all functions (over an infinite size domain) is not. What makes one class learnable and the other unlearnable? Can infinite-size classes be learnable, and, if so, what determines their sample complexity? We begin the chapter by showing that infinite classes can indeed be learnable, and thus, finiteness of the hypothesis class is not a necessary condition for learnability. We then present a remarkably crisp characterization of the family of learnable classes in the setup of binary valued classification with the zero-one loss. This characterization was first discovered by Vladimir Vapnik and Alexey Chervonenkis in 1970 and relies on a combinatorial notion called the VapnikChervonenkis dimension (VC-dimension). We formally define the VC-dimension, provide several examples, and then state the fundamental theorem of statistical learning theory, which integrates the concepts of learnability, VC-dimension, the ERM rule, and uniform convergence.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 2,
+    "label": "Remark 6.1-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.1. Infinite-Size Classes Can Be Learnable",
+      "chapter_number": "6",
+      "section_number": "6.1"
+    },
+    "content": "### 6.1 Infinite-Size Classes Can Be Learnable\n\nIn Chapter 4 we saw that finite classes are learnable, and in fact the sample complexity of a hypothesis class is upper bounded by the log of its size. To show that the size of the hypothesis class is not the right characterization of its sample complexity, we first present a simple example of an infinite-size hypothesis class that is learnable.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 3,
+    "label": "Example 6.1",
+    "env": "example",
+    "number_components": [
+      "6",
+      "1"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.1. Infinite-Size Classes Can Be Learnable",
+      "chapter_number": "6",
+      "section_number": "6.1"
+    },
+    "content": "Example 6.1 Let H be the set of threshold functions over the real line, namely,\nH = {ha : a in R}, where ha : R -> {0, 1} is a function such that ha (x) = 1[x<a] .\nTo remind the reader, 1[x<a] is 1 if x < a and 0 otherwise. Clearly, H is of infinite\n\nsize. Nevertheless, the following lemma shows that H is learnable in the PAC model using the ERM algorithm.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 4,
+    "label": "Lemma 6.1",
+    "env": "lemma",
+    "number_components": [
+      "6",
+      "1"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.1. Infinite-Size Classes Can Be Learnable",
+      "chapter_number": "6",
+      "section_number": "6.1"
+    },
+    "content": "Lemma 6.1 Let H be the class of thresholds as defined earlier. Then, H is\nPAC learnable, using the ERM rule, with sample complexity of m_H (epsilon, delta) <=\ndlog(2/delta)/epsilone.",
+    "dependencies": [],
+    "proof": "Let a? be a threshold such that the hypothesis h? (x) = 1[x<a? ] achieves\nL_D (h? ) = 0. Let Dx be the marginal distribution over the domain X and let\na0 < a? < a1 be such that\nP [x in (a0 , a? )] =    P [x in (a? , a1 )] = epsilon.\nx~Dx                      x~Dx\n\nepsilon mass                  epsilon mass\n\na0                    a?                       a1\n\n(If Dx (-infty, a? ) <= epsilon we set a0 = -infty and similarly for a1 ). Given a training set\nS, let b0 = max{x : (x, 1) in S} and b1 = min{x : (x, 0) in S} (if no example in S\nis positive we set b0 = -infty and if no example in S is negative we set b1 = infty).\nLet bS be a threshold corresponding to an ERM hypothesis, hS , which implies\nthat bS in (b0 , b1 ). Therefore, a sufficient condition for L_D (hS ) <= epsilon is that both\nb0 >= a0 and b1 <= a1 . In other words,\nP [L_D (hS ) > epsilon] <=        P [b0 < a0 or b1 > a1 ],\nS~D m                   S~D m\n\nand using the union bound we can bound the preceding by\nP [L_D (hS ) > epsilon] <=      P [b0 < a0 ] +       P [b1 > a1 ].         (6.1)\nS~D m                   S~D m               S~D m\n\nThe event b0 < a0 happens if and only if all examples in S are not in the interval\n(a0 , a* ), whose probability mass is defined to be epsilon, namely,\nP [b0 < a0 ] =     P [forall(x, y) in S, x 6in (a0 , a? )] = (1 - epsilon)m <= e-epsilon m .\nS~D m               S~D m\n\nSince we assume m > log(2/delta)/epsilon it follows that the equation is at most delta/2. In the same way it is easy to see that PS~Dm [b1 > a1 ] <= delta/2. Combining with Equation (6.1) we conclude our proof."
+  },
+  {
+    "index": 5,
+    "label": "Remark 6.2-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "### 6.2 The VC-Dimension\n\nWe see, therefore, that while finiteness of H is a sufficient condition for learnability, it is not a necessary condition. As we will show, a property called the VC-dimension of a hypothesis class gives the correct characterization of its learnability. To motivate the definition of the VC-dimension, let us recall the No-FreeLunch theorem (Theorem 5.1) and its proof. There, we have shown that without\n\nrestricting the hypothesis class, for any learning algorithm, an adversary can construct a distribution for which the learning algorithm will perform poorly, while there is another learning algorithm that will succeed on the same distribution. To do so, the adversary used a finite set C subset X and considered a family of distributions that are concentrated on elements of C. Each distribution was derived from a \"true\" target function from C to {0, 1}. To make any algorithm fail, the adversary used the power of choosing a target function from the set of all possible functions from C to {0, 1}. When considering PAC learnability of a hypothesis class H, the adversary is restricted to constructing distributions for which some hypothesis h in H achieves a zero risk. Since we are considering distributions that are concentrated on elements of C, we should study how H behaves on C, which leads to the following definition.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 6,
+    "label": "Definition 6.2",
+    "env": "def",
+    "number_components": [
+      "6",
+      "2"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Definition 6.2 (Restriction of H to C) Let H be a class of functions from X to {0, 1} and let C = {c1 , . . . , cm } subset X . The restriction of H to C is the set of functions from C to {0, 1} that can be derived from H. That is, HC = {(h(c1 ), . . . , h(cm )) : h in H}, where we represent each function from C to {0, 1} as a vector in {0, 1}|C| . If the restriction of H to C is the set of all functions from C to {0, 1}, then we say that H shatters the set C. Formally:",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 7,
+    "label": "Definition 6.3",
+    "env": "def",
+    "number_components": [
+      "6",
+      "3"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Definition 6.3 (Shattering) A hypothesis class H shatters a finite set C subset X\nif the restriction of H to C is the set of all functions from C to {0, 1}. That is,\n|HC | = 2|C| .",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 8,
+    "label": "Example 6.2",
+    "env": "example",
+    "number_components": [
+      "6",
+      "2"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Example 6.2 Let H be the class of threshold functions over R. Take a set\nC = {c1 }. Now, if we take a = c1 + 1, then we have ha (c1 ) = 1, and if we take\na = c1 - 1, then we have ha (c1 ) = 0. Therefore, HC is the set of all functions\nfrom C to {0, 1}, and H shatters C. Now take a set C = {c1 , c2 }, where c1 <= c2 .\nNo h in H can account for the labeling (0, 1), because any threshold that assigns\nthe label 0 to c1 must assign the label 0 to c2 as well. Therefore not all functions\nfrom C to {0, 1} are included in HC ; hence C is not shattered by H.\nGetting back to the construction of an adversarial distribution as in the proof\nof the No-Free-Lunch theorem (Theorem 5.1), we see that whenever some set C\nis shattered by H, the adversary is not restricted by H, as they can construct\na distribution over C based on any target function from C to {0, 1}, while still\nmaintaining the realizability assumption. This immediately yields:",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 9,
+    "label": "Corollary 6.4",
+    "env": "cor",
+    "number_components": [
+      "6",
+      "4"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Corollary 6.4 Let H be a hypothesis class of functions from X to {0, 1}. Let m be a training set size. Assume that there exists a set C subset X of size 2m that is shattered by H. Then, for any learning algorithm, A, there exist a distribution D over X × {0, 1} and a predictor h in H such that L_D (h) = 0 but with probability of at least 1/7 over the choice of S ~ Dm we have that L_D (A(S)) >= 1/8.\n\nCorollary 6.4 tells us that if H shatters some set C of size 2m then we cannot learn H using m examples. Intuitively, if a set C is shattered by H, and we receive a sample containing half the instances of C, the labels of these instances give us no information about the labels of the rest of the instances in C - every possible labeling of the rest of the instances can be explained by some hypothesis in H. Philosophically,\n\nIf someone can explain every phenomenon, his explanations are worthless.\n\nThis leads us directly to the definition of the VC dimension.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 10,
+    "label": "Definition 6.5",
+    "env": "def",
+    "number_components": [
+      "6",
+      "5"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Definition 6.5 (VC-dimension) The VC-dimension of a hypothesis class H, denoted VCdim(H), is the maximal size of a set C subset X that can be shattered by H. If H can shatter sets of arbitrarily large size we say that H has infinite VC-dimension.\n\nA direct consequence of Corollary 6.4 is therefore:",
+    "dependencies": [
+      "Corollary 6.4"
+    ],
+    "proof": null
+  },
+  {
+    "index": 11,
+    "label": "Theorem 6.6",
+    "env": "thm",
+    "number_components": [
+      "6",
+      "6"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.2. The VC-Dimension",
+      "chapter_number": "6",
+      "section_number": "6.2"
+    },
+    "content": "Theorem 6.6 Let H be a class of infinite VC-dimension. Then, H is not PAC learnable.",
+    "dependencies": [
+      "Corollary 6.4"
+    ],
+    "proof": "Since H has an infinite VC-dimension, for any training set size m, there exists a shattered set of size 2m, and the claim follows by Corollary 6.4.\n\nWe shall see later in this chapter that the converse is also true: A finite VCdimension guarantees learnability. Hence, the VC-dimension characterizes PAC learnability. But before delving into more theory, we first show several examples."
+  },
+  {
+    "index": 12,
+    "label": "Remark 6.3-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3. Examples",
+      "chapter_number": "6",
+      "section_number": "6.3"
+    },
+    "content": "### 6.3 Examples\n\nIn this section we calculate the VC-dimension of several hypothesis classes. To show that VCdim(H) = d we need to show that\n\n1. There exists a set C of size d that is shattered by H.\n2. Every set C of size d + 1 is not shattered by H.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 13,
+    "label": "Remark 6.3.1-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3.1. Threshold Functions",
+      "chapter_number": "6",
+      "section_number": "6.3.1"
+    },
+    "content": "### 6.3.1 Threshold Functions Let H be the class of threshold functions over R. Recall Example 6.2, where we have shown that for an arbitrary set C = {c1 }, H shatters C; therefore VCdim(H) >= 1. We have also shown that for an arbitrary set C = {c1 , c2 } where c1 <= c2 , H does not shatter C. We therefore conclude that VCdim(H) = 1.",
+    "dependencies": [
+      "Example 6.2"
+    ],
+    "proof": null
+  },
+  {
+    "index": 14,
+    "label": "Remark 6.3.2-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3.2. Intervals",
+      "chapter_number": "6",
+      "section_number": "6.3.2"
+    },
+    "content": "### 6.3.2 Intervals\nLet H be the class of intervals over R, namely, H = {ha,b : a, b in R, a < b},\nwhere ha,b : R -> {0, 1} is a function such that ha,b (x) = 1[xin(a,b)] . Take the set\nC = {1, 2}. Then, H shatters C (make sure you understand why) and therefore\nVCdim(H) >= 2. Now take an arbitrary set C = {c1 , c2 , c3 } and assume without\nloss of generality that c1 <= c2 <= c3 . Then, the labeling (1, 0, 1) cannot be obtained\nby an interval and therefore H does not shatter C. We therefore conclude that\nVCdim(H) = 2.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 15,
+    "label": "Remark 6.3.3-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3.3. Axis Aligned Rectangles",
+      "chapter_number": "6",
+      "section_number": "6.3.3"
+    },
+    "content": "### 6.3.3 Axis Aligned Rectangles Let H be the class of axis aligned rectangles, formally:\n\nH = {h(a1 ,a2 ,b1 ,b2 ) : a1 <= a2 and b1 <= b2 }\n\nwhere\n(\n1   if a1 <= x1 <= a2 and b1 <= x2 <= b2\nh(a1 ,a2 ,b1 ,b2 ) (x1 , x2 ) =                                              (6.2)\n0   otherwise\n\nWe shall show in the following that VCdim(H) = 4. To prove this we need to find a set of 4 points that are shattered by H, and show that no set of 5 points can be shattered by H. Finding a set of 4 points that are shattered is easy (see Figure 6.1). Now, consider any set C subset R2 of 5 points. In C, take a leftmost point (whose first coordinate is the smallest in C), a rightmost point (first coordinate is the largest), a lowest point (second coordinate is the smallest), and a highest point (second coordinate is the largest). Without loss of generality, denote C = {c1 , . . . , c5 } and let c5 be the point that was not selected. Now, define the labeling (1, 1, 1, 1, 0). It is impossible to obtain this labeling by an axis aligned rectangle. Indeed, such a rectangle must contain c1 , . . . , c4 ; but in this case the rectangle contains c5 as well, because its coordinates are within the intervals defined by the selected points. So, C is not shattered by H, and therefore VCdim(H) = 4.\n\nc1\n\nc4   c5    c2\n\nc3\n\nFigure 6.1 Left: 4 points that are shattered by axis aligned rectangles. Right: Any axis\naligned rectangle cannot label c5 by 0 and the rest of the points by 1.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 16,
+    "label": "Remark 6.3.4-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3.4. Finite Classes",
+      "chapter_number": "6",
+      "section_number": "6.3.4"
+    },
+    "content": "### 6.3.4 Finite Classes Let H be a finite class. Then, clearly, for any set C we have |HC | <= |H| and thus C cannot be shattered if |H| < 2|C| . This implies that VCdim(H) <= log2 (|H|). This shows that the PAC learnability of finite classes follows from the more general statement of PAC learnability of classes with finite VC-dimension, which we shall see in the next section. Note, however, that the VC-dimension of a finite class H can be significantly smaller than log2 (|H|). For example, let X = {1, . . . , k}, for some integer k, and consider the class of threshold functions (as defined in Example 6.2). Then, |H| = k but VCdim(H) = 1. Since k can be arbitrarily large, the gap between log2 (|H|) and VCdim(H) can be arbitrarily large.",
+    "dependencies": [
+      "Example 6.2"
+    ],
+    "proof": null
+  },
+  {
+    "index": 17,
+    "label": "Remark 6.3.5-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.3.5. VC-Dimension and the Number of Parameters",
+      "chapter_number": "6",
+      "section_number": "6.3.5"
+    },
+    "content": "### 6.3.5 VC-Dimension and the Number of Parameters\nIn the previous examples, the VC-dimension happened to equal the number of\nparameters defining the hypothesis class. While this is often the case, it is not\nalways true. Consider, for example, the domain X = R, and the hypothesis class\nH = {htheta : theta in R} where htheta : X -> {0, 1} is defined by htheta (x) = d0.5 sin(thetax)e. It\nis possible to prove that VCdim(H) = infty, namely, for every d, one can find d\npoints that are shattered by H (see Exercise 8).",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 18,
+    "label": "Remark 6.4-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.4. The Fundamental Theorem of PAC learning",
+      "chapter_number": "6",
+      "section_number": "6.4"
+    },
+    "content": "### 6.4 The Fundamental Theorem of PAC learning\n\nWe have already shown that a class of infinite VC-dimension is not learnable. The converse statement is also true, leading to the fundamental theorem of statistical learning theory:",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 19,
+    "label": "Theorem 6.7",
+    "env": "thm",
+    "number_components": [
+      "6",
+      "7"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.4. The Fundamental Theorem of PAC learning",
+      "chapter_number": "6",
+      "section_number": "6.4"
+    },
+    "content": "Theorem 6.7 (The Fundamental Theorem of Statistical Learning) Let H be a\nhypothesis class of functions from a domain X to {0, 1} and let the loss function\nbe the 0 - 1 loss. Then, the following are equivalent:\n1. H has the uniform convergence property.\n2. Any ERM rule is a successful agnostic PAC learner for H.\n3. H is agnostic PAC learnable.\n4. H is PAC learnable.\n5. Any ERM rule is a successful PAC learner for H.\n6. H has a finite VC-dimension.\nThe proof of the theorem is given in the next section.\nNot only does the VC-dimension characterize PAC learnability; it even determines the sample complexity.",
+    "dependencies": [
+      "Theorem 6.11"
+    ],
+    "proof": "Proof of Theorem 6.7 It suffices to prove that if the VC-dimension is finite then\nthe uniform convergence property holds. We will prove that\n         \nUC\n16d         16d       16 d log(2e/d)\nm_H (epsilon, delta) <= 4       log           +                 .\n(deltaepsilon)2       (deltaepsilon)2           (deltaepsilon)2\nFrom Sauer's lemma we have that for m > d, tau_H (2m) <= (2em/d)d . Combining\nthis with Theorem 6.11 we obtain that with probability of at least 1 - delta,\np\n4 + d log(2em/d)\n|L_S (h) - L_D (h)| <=        sqrt          .\ndelta 2m\np\nFor simplicity assume that d log(2em/d) >= 4; hence,\nr\n1   2d log(2em/d)\n|L_S (h) - L_D (h)| <=                   .\ndelta         m\n\nTo ensure that the preceding is at most epsilon we need that\n2d log(m) 2 d log(2e/d)\nm>=            +              .\n(deltaepsilon)2        (deltaepsilon)2\nStandard algebraic manipulations (see Lemma A.2 in Appendix A) show that a\nsufficient condition for the preceding to hold is that\n         \n2d          2d       4 d log(2e/d)\nm>=4           log           +               .\n(deltaepsilon)2       (deltaepsilon)2          (deltaepsilon)2"
+  },
+  {
+    "index": 20,
+    "label": "Theorem 6.8",
+    "env": "thm",
+    "number_components": [
+      "6",
+      "8"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.4. The Fundamental Theorem of PAC learning",
+      "chapter_number": "6",
+      "section_number": "6.4"
+    },
+    "content": "Theorem 6.8 (The Fundamental Theorem of Statistical Learning - Quantitative Version) Let H be a hypothesis class of functions from a domain X to {0, 1} and let the loss function be the 0 - 1 loss. Assume that VCdim(H) = d < infty. Then, there are absolute constants C1 , C2 such that:\n\n1. H has the uniform convergence property with sample complexity\nd + log(1/delta)                    d + log(1/delta)\nC1           <= m^UC_H (epsilon, delta) <= C2\nepsilon2                              epsilon2\n2. H is agnostic PAC learnable with sample complexity\nd + log(1/delta)                  d + log(1/delta)\nC1     2\n<= m_H (epsilon, delta) <= C2\nepsilon                             epsilon2\n3. H is PAC learnable with sample complexity\nd + log(1/delta)                  d log(1/epsilon) + log(1/delta)\nC1             <= m_H (epsilon, delta) <= C2\nepsilon                                 epsilon\nThe proof of this theorem is given in Chapter 28.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 21,
+    "label": "Remark 6.3",
+    "env": "remark",
+    "number_components": [
+      "6",
+      "3"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.4. The Fundamental Theorem of PAC learning",
+      "chapter_number": "6",
+      "section_number": "6.4"
+    },
+    "content": "Remark 6.3 We stated the fundamental theorem for binary classification tasks. A similar result holds for some other learning problems such as regression with the absolute loss or the squared loss. However, the theorem does not hold for all learning tasks. In particular, learnability is sometimes possible even though the uniform convergence property does not hold (we will see an example in Chapter 13, Exercise 2). Furthermore, in some situations, the ERM rule fails but learnability is possible with other learning rules.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 22,
+    "label": "Remark 6.5-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5. Proof of Theorem 6.7",
+      "chapter_number": "6",
+      "section_number": "6.5"
+    },
+    "content": "### 6.5 Proof of Theorem 6.7\n\nWe have already seen that 1 -> 2 in Chapter 4. The implications 2 -> 3 and\n3 -> 4 are trivial and so is 2 -> 5. The implications 4 -> 6 and 5 -> 6 follow from\nthe No-Free-Lunch theorem. The difficult part is to show that 6 -> 1. The proof\nis based on two main claims:\n• If VCdim(H) = d, then even though H might be infinite, when restricting it\nto a finite set C subset X , its \"effective\" size, |HC |, is only O(|C|d ). That is,\nthe size of HC grows polynomially rather than exponentially with |C|. This\nclaim is often referred to as Sauer's lemma, but it has also been stated and\nproved independently by Shelah and by Perles. The formal statement is\ngiven in Section 6.5.1 later.\n• In Section 4 we have shown that finite hypothesis classes enjoy the uniform\nconvergence property. In Section 6.5.2 later we generalize this result and\nshow that uniform convergence holds whenever the hypothesis class has a\n\"small effective size.\" By \"small effective size\" we mean classes for which\n|HC | grows polynomially with |C|.",
+    "dependencies": [
+      "Theorem 6.7"
+    ],
+    "proof": null
+  },
+  {
+    "index": 23,
+    "label": "Remark 6.5.1-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.1. Sauer's Lemma and the Growth Function",
+      "chapter_number": "6",
+      "section_number": "6.5.1"
+    },
+    "content": "### 6.5.1 Sauer's Lemma and the Growth Function We defined the notion of shattering, by considering the restriction of H to a finite set of instances. The growth function measures the maximal \"effective\" size of H on a set of m examples. Formally:",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 24,
+    "label": "Definition 6.9",
+    "env": "def",
+    "number_components": [
+      "6",
+      "9"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.1. Sauer's Lemma and the Growth Function",
+      "chapter_number": "6",
+      "section_number": "6.5.1"
+    },
+    "content": "Definition 6.9 (Growth Function) Let H be a hypothesis class. Then the growth function of H, denoted tau_H : N -> N, is defined as\n\ntau_H (m) =           max        HC . CsubsetX :|C|=m\n\nIn words, tau_H (m) is the number of different functions from a set C of size m to {0, 1} that can be obtained by restricting H to C.\n\nObviously, if VCdim(H) = d then for any m <= d we have tau_H (m) = 2m . In such cases, H induces all possible functions from C to {0, 1}. The following beautiful lemma, proposed independently by Sauer, Shelah, and Perles, shows that when m becomes larger than the VC-dimension, the growth function increases polynomially rather than exponentially with m.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 25,
+    "label": "Lemma 6.10",
+    "env": "lemma",
+    "number_components": [
+      "6",
+      "10"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.1. Sauer's Lemma and the Growth Function",
+      "chapter_number": "6",
+      "section_number": "6.5.1"
+    },
+    "content": "Lemma 6.10 (Sauer-Shelah-Perles) Let H be  a hypothesis class with VCdim(H) <=\nPd\nd < infty. Then, for all m, tau_H (m) <= i=0 mi . In particular, if m > d + 1 then\ntau_H (m) <= (em/d)d .",
+    "dependencies": [
+      "Lemma 6.1"
+    ],
+    "proof": "Proof of Sauer's Lemma *\nTo prove the lemma it suffices to prove the following stronger claim: For any\nC = {c1 , . . . , cm } we have\n\nforall H,     |HC | <= |{B subseteq C : H shatters B}|.                                (6.3)\n\nThe reason why Equation (6.3) is sufficient to prove the lemma is that if VCdim(H) <=\nd then no set whose size is larger than d is shattered by H and therefore\nd    \nX      m\n|{B subseteq C : H shatters B}| <=                .\ni=0\ni\n\nWhen m > d + 1 the right-hand side of the preceding is at most (em/d)d (see Lemma A.5 in Appendix A). We are left with proving Equation (6.3) and we do it using an inductive argument. For m = 1, no matter what H is, either both sides of Equation (6.3) equal 1 or both sides equal 2 (the empty set is always considered to be shattered by H). Assume Equation (6.3) holds for sets of size k < m and let us prove it for sets of size m. Fix H and C = {c1 , . . . , cm }. Denote C 0 = {c2 , . . . , cm } and in addition, define the following two sets:\n\nY0 = {(y2 , . . . , ym ) : (0, y2 , . . . , ym ) in HC or (1, y2 , . . . , ym ) in HC },\n\nand\n\nY1 = {(y2 , . . . , ym ) : (0, y2 , . . . , ym ) in HC and (1, y2 , . . . , ym ) in HC }.\n\nIt is easy to verify that |HC | = |Y0 | + |Y1 |. Additionally, since Y0 = HC 0 , using the induction assumption (applied on H and C 0 ) we have that\n\n|Y0 | = |HC 0 | <= |{B subseteq C 0 : H shatters B}| = |{B subseteq C : c1 6in B and H shatters B}|.\n\nNext, define H0 subseteq H to be\nH0 = {h in H : existsh0 in H s.t. (1 - h0 (c1 ), h0 (c2 ), . . . , h0 (cm ))\n= (h(c1 ), h(c2 ), . . . , h(cm )},\nnamely, H0 contains pairs of hypotheses that agree on C 0 and differ on c1 . Using\nthis definition, it is clear that if H0 shatters a set B subseteq C 0 then it also shatters\nthe set B union {c1 } and vice versa. Combining this with the fact that Y1 = HC    0 and\n\nusing the inductive assumption (now applied on H0 and C 0 ) we obtain that\n0              0   0                      0   0\n|Y1 | = |HC 0 | <= |{B subseteq C : H shatters B}| = |{B subseteq C : H shatters B union {c1 }}|\n\n= |{B subseteq C : c1 in B and H0 shatters B}| <= |{B subseteq C : c1 in B and H shatters B}|.\nOverall, we have shown that\n|HC | = |Y0 | + |Y1 |\n<= |{B subseteq C : c1 6in B and H shatters B}| + |{B subseteq C : c1 in B and H shatters B}|\n= |{B subseteq C : H shatters B}|,\nwhich concludes our proof."
+  },
+  {
+    "index": 26,
+    "label": "Remark 6.5.2-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.2. Uniform Convergence for Classes of Small Effective Size",
+      "chapter_number": "6",
+      "section_number": "6.5.2"
+    },
+    "content": "### 6.5.2 Uniform Convergence for Classes of Small Effective Size In this section we prove that if H has small effective size then it enjoys the uniform convergence property. Formally,",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 27,
+    "label": "Theorem 6.11",
+    "env": "thm",
+    "number_components": [
+      "6",
+      "11"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.2. Uniform Convergence for Classes of Small Effective Size",
+      "chapter_number": "6",
+      "section_number": "6.5.2"
+    },
+    "content": "Theorem 6.11 Let H be a class and let tau_H be its growth function. Then, for\nevery D and every delta in (0, 1), with probability of at least 1 - delta over the choice of\nS ~ Dm we have\np\n4 + log(tau_H (2m))\n|L_D (h) - L_S (h)| <=           sqrt           .\ndelta 2m\nBefore proving the theorem, let us first conclude the proof of Theorem 6.7.",
+    "dependencies": [
+      "Theorem 6.7"
+    ],
+    "proof": "Proof of Theorem 6.11 * We will start by showing that                              p 4 + log(tau_H (2m)) E     sup |L_D (h) - L_S (h)| <=      sqrt           .                          (6.4) S~D m hinH                              2m Since the random variable suphinH |L_D (h) - L_S (h)| is nonnegative, the proof of the theorem follows directly from the preceding using Markov's inequality (see Section B.1). To bound the left-hand side of Equation (6.4) we first note that for every h in H, we can rewrite L_D (h) = ES 0 ~Dm [L_S 0 (h)], where S 0 = z10 , . . . , zm is an additional i.i.d. sample. Therefore,                                                                      E m sup |L_D (h) - L_S (h)| = E m sup 0 E m L_S 0 (h) - L_S (h) . S~D     hinH                             S~D       hinH S ~D\n\nA generalization of the triangle inequality yields\n\nE     [L_S 0 (h) - L_S (h)] <=      E       |L_S 0 (h) - L_S (h)|,\nS 0 ~D m                           S 0 ~D m\n\nand the fact that supermum of expectation is smaller than expectation of supremum yields sup    0 E m |L_S 0 (h) - L_S (h)| <=       E        sup |L_S 0 (h) - L_S (h)|. hinH S ~D                                 S 0 ~D m hinH\n\nFormally, the previous two inequalities follow from Jensen's inequality. Combining all we obtain\n                                                                 \nE     sup |L_D (h) - L_S (h)| <=       E      sup |L_S (h) - L_S (h)|\nS~D m hinH                        S,S 0 ~D m hinH\n\"           m\n#\n1 X            0\n=      E      sup          (`(h, zi ) - `(h, zi )) .\nS,S 0 ~D m hinH m\ni=1\n(6.5)\n\nThe expectation on the right-hand side is over a choice of two i.i.d. samples\nS = z1 , . . . , zm and S 0 = z10 , . . . , zm\n. Since all of these 2m vectors are chosen\ni.i.d., nothing will change if we replace the name of the random vector zi with the\nname of the random vector zi0 . If we do it, instead of the term (`(h, zi0 ) - `(h, zi ))\nin Equation (6.5) we will have the term -(`(h, zi0 ) - `(h, zi )). It follows that for\nevery sigma in {+/-1}m we have that Equation (6.5) equals\n\"               m\n#\n1 X                0\nE      sup              sigmai (`(h, zi ) - `(h, zi ))\nS,S 0 ~D m hinH m\ni=1\n\nSince this holds for every sigma in {+/-1}m , it also holds if we sample each component of sigma uniformly at random from the uniform distribution over {+/-1}, denoted U+/- . Hence, Equation (6.5) also equals \"         m # 1 X               0 E m 0E m sup              sigmai (`(h, zi ) - `(h, zi )) , sigma~U+/-   S,S ~D   hinH m i=1\n\nand by the linearity of expectation it also equals \"         m # 1 X               0 E       E m sup         sigmai (`(h, zi ) - `(h, zi )) . S,S 0 ~D m sigma~U+/-  hinH m i=1\n\nNext, fix S and S 0 , and let C be the instances appearing in S and S 0 . Then, we\ncan take the supremum only over h in HC . Therefore,\n\"          m\n#\n1 X               0\nE m sup             sigmai (`(h, zi ) - `(h, zi ))\nsigma~U+/-     hinH m i=1\n\"             m\n#\n1 X               0\n= E m max                  sigmai (`(h, zi ) - `(h, zi )) .\nsigma~U+/- hinHC m\ni=1\nPm                0\nFix some h in HC and denote thetah = m            i=1 sigmai (`(h, zi ) - `(h, zi )). Since E[thetah ] = 0\nand thetah is an average of independent variables, each of which takes values in\n[-1, 1], we have by Hoeffding's inequality that for every rho > 0,\nP[|thetah | > rho] <= 2 exp -2 m rho2 .\n \n\nApplying the union bound over h in HC , we obtain that for any rho > 0,                 P max |thetah | > rho <= 2 |HC | exp -2 m rho2 .   hinHC\n\nFinally, Lemma A.4 in Appendix A tells us that the preceding implies                    p 4 + log(|HC |) E max |thetah | <=        sqrt          . hinHC                 2m Combining all with the definition of tau_H , we have shown that                                   p 4 + log(tau_H (2m)) E     sup |L_D (h) - L_S (h)| <=           sqrt          . S~D m hinH                                    2m"
+  },
+  {
+    "index": 28,
+    "label": "Remark 6.4",
+    "env": "remark",
+    "number_components": [
+      "6",
+      "4"
+    ],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.5.2. Uniform Convergence for Classes of Small Effective Size",
+      "chapter_number": "6",
+      "section_number": "6.5.2"
+    },
+    "content": "Remark 6.4 The upper bound on mUC       H we derived in the proof Theorem 6.7 is not the tightest possible. A tighter analysis that yields the bounds given in Theorem 6.8 can be found in Chapter 28.",
+    "dependencies": [
+      "Theorem 6.7",
+      "Theorem 6.8"
+    ],
+    "proof": null
+  },
+  {
+    "index": 29,
+    "label": "Remark 6.6-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.6. Summary",
+      "chapter_number": "6",
+      "section_number": "6.6"
+    },
+    "content": "### 6.6 Summary\n\nThe fundamental theorem of learning theory characterizes PAC learnability of classes of binary classifiers using VC-dimension. The VC-dimension of a class is a combinatorial property that denotes the maximal sample size that can be shattered by the class. The fundamental theorem states that a class is PAC learnable if and only if its VC-dimension is finite and specifies the sample complexity required for PAC learning. The theorem also shows that if a problem is at all learnable, then uniform convergence holds and therefore the problem is learnable using the ERM rule.",
+    "dependencies": [],
+    "proof": null
+  },
+  {
+    "index": 30,
+    "label": "Remark 6.7-extra-1",
+    "env": "remark",
+    "number_components": [],
+    "context": {
+      "chapter": "The VC-Dimension",
+      "section": "6.7. Bibliographic remarks",
+      "chapter_number": "6",
+      "section_number": "6.7"
+    },
+    "content": "### 6.7 Bibliographic remarks\n\nThe definition of VC-dimension and its relation to learnability and to uniform convergence is due to the seminal work of Vapnik & Chervonenkis (1971). The relation to the definition of PAC learnability is due to Blumer, Ehrenfeucht, Haussler & Warmuth (1989). Several generalizations of the VC-dimension have been proposed. For example, the fat-shattering dimension characterizes learnability of some regression problems (Kearns, Schapire & Sellie 1994, Alon, Ben-David, Cesa-Bianchi & Haussler 1997, Bartlett, Long & Williamson 1994, Anthony & Bartlet 1999), and the Natarajan dimension characterizes learnability of some multiclass learning problems (Natarajan 1989). However, in general, there is no equivalence between learnability and uniform convergence. See (Shalev-Shwartz, Shamir, Srebro & Sridharan 2010, Daniely, Sabato, Ben-David & Shalev-Shwartz 2011). Sauer's lemma has been proved by Sauer in response to a problem of Erdos (Sauer 1972). Shelah (with Perles) proved it as a useful lemma for Shelah's theory of stable models (Shelah 1972). Gil Kalai tells1 us that at some later time, Benjy Weiss asked Perles about such a result in the context of ergodic theory, and Perles, who forgot that he had proved it once, proved it again. Vapnik and Chervonenkis proved the lemma in the context of statistical learning theory.",
+    "dependencies": [],
+    "proof": null
+  }
+]

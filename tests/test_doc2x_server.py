@@ -151,6 +151,94 @@ class Doc2XServerTests(unittest.TestCase):
                 doc2x_service.shutdown()
                 full_service.shutdown()
 
+    def test_source_conversion_returns_annotation_schema_for_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            jobs_root = Path(temp) / "jobs"
+            markdown_service = JobService(WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"))
+            doc2x_service = Doc2XJobService(Doc2XWorkerSettings(jobs_root=jobs_root), client=FakeDoc2XClient())
+            full_service = FullConversionService(
+                FullWorkerSettings(
+                    jobs_root=jobs_root,
+                    md2json_settings=WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"),
+                ),
+                doc2x_client=FakeDoc2XClient(),
+            )
+            app = create_app(markdown_service, doc2x_service, full_service, api_token="test-token")
+            try:
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/v1/source-conversions",
+                        headers={"Authorization": "Bearer test-token"},
+                        files={"file": ("source.pdf", b"%PDF-1.4 fake", "application/pdf")},
+                        data={"structure_mode": "hard", "audit_mode": "off"},
+                    )
+                    self.assertEqual(response.status_code, 202)
+                    self.assertEqual(response.json()["source_type"], "pdf")
+                    job_id = response.json()["job_id"]
+                    terminal = _poll(client, f"/v1/source-conversions/{job_id}")
+                    self.assertEqual(terminal["status"], "succeeded")
+                    self.assertEqual(terminal["source_type"], "pdf")
+
+                    result = client.get(
+                        f"/v1/source-conversions/{job_id}/result",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(result.status_code, 200)
+                    payload = result.json()
+                    self.assertEqual(payload["schema_version"], "md2json.annotation.v1")
+                    self.assertEqual(payload["source"]["filename"], "source.pdf")
+                    self.assertEqual(payload["source"]["source_type"], "pdf")
+                    self.assertEqual(payload["items"][0]["type"], "def")
+                    self.assertIn("error_count", payload["quality"])
+            finally:
+                markdown_service.shutdown()
+                doc2x_service.shutdown()
+                full_service.shutdown()
+
+    def test_source_conversion_returns_annotation_schema_for_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            jobs_root = Path(temp) / "jobs"
+            markdown_service = JobService(WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"))
+            doc2x_service = Doc2XJobService(Doc2XWorkerSettings(jobs_root=jobs_root), client=FakeDoc2XClient())
+            full_service = FullConversionService(
+                FullWorkerSettings(
+                    jobs_root=jobs_root,
+                    md2json_settings=WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"),
+                ),
+                doc2x_client=FakeDoc2XClient(),
+            )
+            app = create_app(markdown_service, doc2x_service, full_service, api_token="test-token")
+            try:
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/v1/source-conversions",
+                        headers={"Authorization": "Bearer test-token"},
+                        files={"file": ("source.png", b"\x89PNG fake", "image/png")},
+                        data={"structure_mode": "hard", "audit_mode": "off"},
+                    )
+                    self.assertEqual(response.status_code, 202)
+                    self.assertEqual(response.json()["source_type"], "image")
+                    job_id = response.json()["job_id"]
+                    self.assertTrue(job_id.startswith("image_"))
+                    terminal = _poll(client, f"/v1/source-conversions/{job_id}")
+                    self.assertEqual(terminal["status"], "succeeded")
+                    self.assertEqual(terminal["source_type"], "image")
+
+                    result = client.get(
+                        f"/v1/source-conversions/{job_id}/result",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(result.status_code, 200)
+                    payload = result.json()
+                    self.assertEqual(payload["schema_version"], "md2json.annotation.v1")
+                    self.assertEqual(payload["source"]["filename"], "source.png")
+                    self.assertEqual(payload["source"]["source_type"], "image")
+                    self.assertEqual(payload["items"][0]["type"], "def")
+            finally:
+                markdown_service.shutdown()
+                doc2x_service.shutdown()
+                full_service.shutdown()
+
 
 def _poll(client: TestClient, path: str) -> dict:
     deadline = time.monotonic() + 5

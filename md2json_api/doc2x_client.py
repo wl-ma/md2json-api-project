@@ -16,6 +16,8 @@ from .runtime import atomic_write_bytes, atomic_write_json, atomic_write_text
 class Doc2XSettings:
     api_key: str | None
     base_url: str = "https://v2.doc2x.noedgeai.com"
+    image_endpoint: str = "/api/v2/async/parse/img/layout"
+    image_status_endpoint: str = "/api/v2/parse/img/layout/status"
     timeout: float = 600
     poll_interval: float = 2
 
@@ -24,6 +26,11 @@ class Doc2XSettings:
         return cls(
             api_key=os.environ.get("DOC2X_API_KEY"),
             base_url=os.environ.get("DOC2X_BASE_URL", "https://v2.doc2x.noedgeai.com"),
+            image_endpoint=os.environ.get("DOC2X_IMAGE_ENDPOINT", "/api/v2/async/parse/img/layout"),
+            image_status_endpoint=os.environ.get(
+                "DOC2X_IMAGE_STATUS_ENDPOINT",
+                "/api/v2/parse/img/layout/status",
+            ),
             timeout=float(os.environ.get("DOC2X_TIMEOUT", "600")),
             poll_interval=float(os.environ.get("DOC2X_POLL_INTERVAL", "2")),
         )
@@ -48,6 +55,13 @@ class Doc2XClient:
         options: dict[str, Any],
         progress_callback: Callable[[str, int | None], None] | None = None,
     ) -> Doc2XResult:
+        if source_file.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+            return self.convert_image_file(
+                source_file=source_file,
+                output_dir=output_dir,
+                options=options,
+                progress_callback=progress_callback,
+            )
         if not self.settings.api_key:
             raise RuntimeError("Doc2X backend is not configured.")
 
@@ -109,6 +123,81 @@ class Doc2XClient:
         progress_callback("finalizing", 100)
         return Doc2XResult(markdown_path=markdown_path, json_path=pages_path, manifest_path=manifest_path)
 
+    def convert_image_file(
+        self,
+        *,
+        source_file: Path,
+        output_dir: Path,
+        options: dict[str, Any],
+        progress_callback: Callable[[str, int | None], None] | None = None,
+    ) -> Doc2XResult:
+        if not self.settings.api_key:
+            raise RuntimeError("Doc2X backend is not configured.")
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        progress_callback = progress_callback or (lambda _phase, _progress: None)
+
+        progress_callback("image_ocr_requesting", None)
+        content_type = _image_content_type(source_file)
+        submit_payload = self._post_binary(
+            self.settings.image_endpoint,
+            source_file.read_bytes(),
+            content_type=content_type,
+        )
+        uid = _require_nested(submit_payload, "data", "uid")
+
+        progress_callback("image_ocr_waiting", None)
+        status_payload = self._poll_image_layout_status(str(uid), progress_callback)
+        result_payload = _image_result_payload(status_payload)
+        pages_path = output_dir / "pages.json"
+        atomic_write_json(pages_path, result_payload)
+
+        markdown_text = _markdown_from_image_payload(result_payload)
+        if not markdown_text.strip():
+            raise RuntimeError("Doc2X image OCR did not produce Markdown.")
+        markdown_path = output_dir / "output.md"
+        atomic_write_text(markdown_path, markdown_text)
+
+        manifest_path = output_dir / "export_manifest.json"
+        atomic_write_json(
+            manifest_path,
+            {
+                "uid": str(uid),
+                "source_file": source_file.name,
+                "markdown_path": markdown_path.name,
+                "json_path": pages_path.name,
+                "markdown_source": "image_ocr",
+                "image_endpoint": self.settings.image_endpoint,
+                "image_status_endpoint": self.settings.image_status_endpoint,
+                "content_type": content_type,
+            },
+        )
+        progress_callback("finalizing", 100)
+        return Doc2XResult(markdown_path=markdown_path, json_path=pages_path, manifest_path=manifest_path)
+
+    def _poll_image_layout_status(
+        self,
+        uid: str,
+        progress_callback: Callable[[str, int | None], None],
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + self.settings.timeout
+        last_payload: dict[str, Any] | None = None
+        while time.monotonic() < deadline:
+            payload = self._get_json(f"{self.settings.image_status_endpoint}?uid={parse.quote(uid)}")
+            last_payload = payload
+            if payload.get("code") != "success":
+                raise RuntimeError(f"Doc2X image OCR failed: {payload.get('code', 'unknown_error')}")
+            data = payload.get("data", {})
+            status = data.get("status") if isinstance(data, dict) else None
+            if status == "success":
+                progress_callback("image_ocr_waiting", 100)
+                return payload
+            if status in {"failed", "fail", "error"}:
+                raise RuntimeError("Doc2X image OCR failed.")
+            progress_callback("image_ocr_waiting", None)
+            time.sleep(self.settings.poll_interval)
+        raise TimeoutError(f"Doc2X image OCR timed out: {last_payload.get('code') if last_payload else 'no_status'}")
+
     def _poll_parse_status(
         self,
         uid: str,
@@ -156,6 +245,21 @@ class Doc2XClient:
         body = json.dumps(payload).encode("utf-8")
         headers = self._headers({"Content-Type": "application/json"})
         return self._json_request(request.Request(self._url(path), data=body, headers=headers, method="POST"))
+
+    def _post_binary(
+        self,
+        path: str,
+        body: bytes,
+        *,
+        content_type: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        url = self._url(path)
+        if params:
+            separator = "&" if "?" in url else "?"
+            url = url + separator + parse.urlencode({key: str(value) for key, value in params.items()})
+        headers = self._headers({"Content-Type": content_type})
+        return self._json_request(request.Request(url, data=body, headers=headers, method="POST"))
 
     def _get_json(self, path: str) -> dict[str, Any]:
         return self._json_request(request.Request(self._url(path), headers=self._headers(), method="GET"))
@@ -208,6 +312,8 @@ class Doc2XClient:
         return headers
 
     def _url(self, path: str) -> str:
+        if path.startswith("http://") or path.startswith("https://"):
+            return path
         return self.settings.base_url.rstrip("/") + path
 
 
@@ -248,3 +354,61 @@ def _markdown_from_pages(result_payload: Any) -> str:
         if isinstance(page, dict) and isinstance(page.get("md"), str):
             chunks.append(page["md"].rstrip())
     return "\n\n".join(chunk for chunk in chunks if chunk)
+
+
+def _image_content_type(source_file: Path) -> str:
+    suffix = source_file.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".png":
+        return "image/png"
+    raise RuntimeError("Doc2X image OCR only supports .jpg, .jpeg, and .png files.")
+
+
+def _image_result_payload(payload: dict[str, Any]) -> Any:
+    if payload.get("code") not in {None, "success"}:
+        raise RuntimeError(f"Doc2X image OCR failed: {payload.get('code')}")
+    data = payload.get("data")
+    if isinstance(data, dict):
+        if isinstance(data.get("result"), dict):
+            return data["result"]
+        if isinstance(data.get("ocrResp"), dict):
+            return data["ocrResp"]
+        return data
+    return payload
+
+
+def _markdown_from_image_payload(payload: Any) -> str:
+    if isinstance(payload, dict):
+        for key in ("md", "markdown", "text", "content"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        pages_markdown = _markdown_from_pages(payload)
+        if pages_markdown.strip():
+            return pages_markdown
+        for key in ("texLines", "lines", "blocks"):
+            lines = payload.get(key)
+            if isinstance(lines, list):
+                text = _markdown_from_line_list(lines)
+                if text.strip():
+                    return text
+    if isinstance(payload, list):
+        return _markdown_from_line_list(payload)
+    return ""
+
+
+def _markdown_from_line_list(lines: list[Any]) -> str:
+    chunks: list[str] = []
+    for line in lines:
+        if isinstance(line, str):
+            chunks.append(line)
+            continue
+        if not isinstance(line, dict):
+            continue
+        for key in ("md", "markdown", "text", "content", "latex", "line"):
+            value = line.get(key)
+            if isinstance(value, str) and value.strip():
+                chunks.append(value)
+                break
+    return "\n".join(chunks)
