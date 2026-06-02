@@ -1,0 +1,57 @@
+{
+  "source_file": "Boyd_Vandenberghe__Convex_Optimization.pdf",
+  "markdown_path": "output.md",
+  "json_path": "pages.json",
+  "archive_path": "export.zip",
+  "markdown_source": "merged_split_exports",
+  "split_chunks": [
+    {
+      "chunk_index": 1,
+      "start_page": 1,
+      "end_page": 100,
+      "markdown_chars": 251914
+    },
+    {
+      "chunk_index": 2,
+      "start_page": 101,
+      "end_page": 200,
+      "markdown_chars": 304550
+    },
+    {
+      "chunk_index": 3,
+      "start_page": 201,
+      "end_page": 300,
+      "markdown_chars": 312981
+    },
+    {
+      "chunk_index": 4,
+      "start_page": 301,
+      "end_page": 400,
+      "markdown_chars": 257163
+    },
+    {
+      "chunk_index": 5,
+      "start_page": 401,
+      "end_page": 500,
+      "markdown_chars": 265716
+    },
+    {
+      "chunk_index": 6,
+      "start_page": 501,
+      "end_page": 600,
+      "markdown_chars": 295396
+    },
+    {
+      "chunk_index": 7,
+      "start_page": 601,
+      "end_page": 700,
+      "markdown_chars": 285805
+    },
+    {
+      "chunk_index": 8,
+      "start_page": 701,
+      "end_page": 714,
+      "markdown_chars": 36105
+    }
+  ]
+}
