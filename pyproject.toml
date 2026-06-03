@@ -21,3 +21,6 @@ md2json-api = "md2json_api.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["md2json_api*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

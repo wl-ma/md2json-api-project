@@ -248,7 +248,7 @@ API 路径，不要将 `/srv/md2json/jobs` 映射为静态目录。
 创建转换任务：
 
 ```bash
-curl -X POST https://api.example.com/v1/conversions \
+curl -X POST https://api.example.com/v1/source-conversions \
   -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
   -F "file=@/path/to/input.md;type=text/markdown" \
   -F "prompt_profile=auto" \
@@ -267,26 +267,20 @@ curl -X POST https://api.example.com/v1/conversions \
 | Method | Path | 返回内容 |
 |---|---|---|
 | `GET` | `/healthz` | 存活状态，不包含配置或凭据 |
-| `POST` | `/v1/conversions` | `job_id` 和初始任务状态 |
-| `GET` | `/v1/conversions/{job_id}` | 状态、阶段和 section 进度 |
-| `POST` | `/v1/conversions/{job_id}/resume` | 将失败任务按安全缓存规则重新排队 |
-| `GET` | `/v1/conversions/{job_id}/result` | 成功任务的最终 item JSON |
-| `GET` | `/v1/conversions/{job_id}/quality` | 脱敏后的质量报告 |
-| `POST` | `/v1/doc2x-conversions` | 上传 PDF，返回 Doc2X 转换任务状态 |
-| `GET` | `/v1/doc2x-conversions/{job_id}` | Doc2X 任务状态和进度 |
-| `GET` | `/v1/doc2x-conversions/{job_id}/markdown` | 成功任务的 Doc2X Markdown |
-| `GET` | `/v1/doc2x-conversions/{job_id}/json` | 成功任务的 Doc2X 结构化 JSON |
-| `POST` | `/v1/full-conversions` | 上传 PDF，先 Doc2X 再 md2json，返回全流程任务状态 |
-| `GET` | `/v1/full-conversions/{job_id}` | 全流程任务状态、Doc2X 进度和 section 进度 |
-| `GET` | `/v1/full-conversions/{job_id}/result` | 成功任务的最终 item JSON |
-| `GET` | `/v1/full-conversions/{job_id}/quality` | 全流程 md2json 质量报告 |
+| `POST` | `/v1/source-conversions` | 上传 `.md`、`.pdf`、`.jpg`、`.jpeg`、`.png`，返回 `job_id` 和初始任务状态 |
+| `GET` | `/v1/source-conversions/{job_id}` | 状态、阶段、Doc2X/OCR 进度和 section 进度 |
+| `GET` | `/v1/source-conversions/{job_id}/result` | 成功任务的 `md2json.annotation.v1` 结果；若已保存人工标注，返回保存版本 |
+| `PUT` | `/v1/source-conversions/{job_id}/annotation` | 保存前端人工编辑后的完整 `md2json.annotation.v1` 文档 |
+| `GET` | `/v1/source-conversions/{job_id}/annotation` | 获取已保存的人工标注结果 |
+| `GET` | `/v1/source-conversions/{job_id}/quality` | 当前 annotation 结果中的质量摘要 |
+| `GET` | `/v1/source-conversions/{job_id}/usage` | 脱敏用量统计 |
 
 除 `/healthz` 外的接口都需要 bearer token。API 不提供 trace、源 Markdown 切片、内部错误栈或服务器路径。
 
-Doc2X 单阶段任务示例：
+PDF 任务示例：
 
 ```bash
-curl -X POST https://api.example.com/v1/doc2x-conversions \
+curl -X POST https://api.example.com/v1/source-conversions \
   -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
   -F "file=@/path/to/input.pdf;type=application/pdf" \
   -F "doc2x_model=v3-2026" \
@@ -294,22 +288,16 @@ curl -X POST https://api.example.com/v1/doc2x-conversions \
   -F "formula_level=0"
 ```
 
-原始 PDF 全流程任务示例：
+保存人工标注结果：
 
 ```bash
-curl -X POST https://api.example.com/v1/full-conversions \
+curl -X PUT https://api.example.com/v1/source-conversions/${JOB_ID}/annotation \
   -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
-  -F "file=@/path/to/input.pdf;type=application/pdf" \
-  -F "doc2x_model=v3-2026" \
-  -F "formula_mode=normal" \
-  -F "prompt_profile=auto" \
-  -F "structure_mode=auto" \
-  -F "audit_mode=auto"
+  -H "Content-Type: application/json" \
+  --data-binary @annotation.json
 ```
 
-当前原始文件入口首版只接受 `.pdf`。Doc2X 单阶段作业使用独立 `doc2x_jobs.sqlite3` 和
-`doc2x/` 作业目录；全流程作业使用独立 `full_jobs.sqlite3` 和 `full/` 作业目录，不复用现有
-Markdown-only conversion store。
+正式 HTTP API 只公开统一入口。Markdown-only、Doc2X-only 和 PDF full conversion 的底层服务仍作为内部模块被统一入口复用。
 
 ### `systemd` 示例
 

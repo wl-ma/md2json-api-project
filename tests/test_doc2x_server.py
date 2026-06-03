@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import time
 import unittest
@@ -50,7 +49,7 @@ class FakeDoc2XClient:
 
 @unittest.skipIf(TestClient is None, "API optional dependencies are not installed.")
 class Doc2XServerTests(unittest.TestCase):
-    def test_doc2x_conversion_exposes_markdown_and_json(self) -> None:
+    def test_legacy_doc2x_and_full_routes_are_not_registered(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             jobs_root = Path(temp) / "jobs"
             markdown_service = JobService(WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"))
@@ -65,87 +64,10 @@ class Doc2XServerTests(unittest.TestCase):
             app = create_app(markdown_service, doc2x_service, full_service, api_token="test-token")
             try:
                 with TestClient(app) as client:
-                    response = client.post(
-                        "/v1/doc2x-conversions",
-                        headers={"Authorization": "Bearer test-token"},
-                        files={"file": ("source.pdf", b"%PDF-1.4 fake", "application/pdf")},
-                    )
-                    self.assertEqual(response.status_code, 202)
-                    job_id = response.json()["job_id"]
-                    terminal = _poll(client, f"/v1/doc2x-conversions/{job_id}")
-                    self.assertEqual(terminal["status"], "succeeded")
-
-                    markdown = client.get(
-                        f"/v1/doc2x-conversions/{job_id}/markdown",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(markdown.status_code, 200)
-                    self.assertIn("Definition 1", markdown.text)
-
-                    doc2x_json = client.get(
-                        f"/v1/doc2x-conversions/{job_id}/json",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(doc2x_json.status_code, 200)
-                    self.assertEqual(doc2x_json.json()["pages"][0]["page_idx"], 0)
-                    usage = client.get(
-                        f"/v1/doc2x-conversions/{job_id}/usage",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(usage.status_code, 200)
-                    self.assertEqual(usage.json()["requests"], 1)
-                    self.assertNotIn(temp, json.dumps(terminal))
-            finally:
-                markdown_service.shutdown()
-                doc2x_service.shutdown()
-                full_service.shutdown()
-
-    def test_full_conversion_runs_doc2x_then_md2json(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            jobs_root = Path(temp) / "jobs"
-            markdown_service = JobService(WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"))
-            doc2x_service = Doc2XJobService(Doc2XWorkerSettings(jobs_root=jobs_root), client=FakeDoc2XClient())
-            full_service = FullConversionService(
-                FullWorkerSettings(
-                    jobs_root=jobs_root,
-                    md2json_settings=WorkerSettings(jobs_root=jobs_root, backend="local", model="unused"),
-                ),
-                doc2x_client=FakeDoc2XClient(),
-            )
-            app = create_app(markdown_service, doc2x_service, full_service, api_token="test-token")
-            try:
-                with TestClient(app) as client:
-                    response = client.post(
-                        "/v1/full-conversions",
-                        headers={"Authorization": "Bearer test-token"},
-                        files={"file": ("source.pdf", b"%PDF-1.4 fake", "application/pdf")},
-                        data={"structure_mode": "hard", "audit_mode": "off"},
-                    )
-                    self.assertEqual(response.status_code, 202)
-                    job_id = response.json()["job_id"]
-                    terminal = _poll(client, f"/v1/full-conversions/{job_id}")
-                    self.assertEqual(terminal["status"], "succeeded")
-                    self.assertEqual(terminal["sections_completed"], terminal["sections_total"])
-
-                    result = client.get(
-                        f"/v1/full-conversions/{job_id}/result",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(result.status_code, 200)
-                    self.assertEqual(result.json()[0]["env"], "def")
-
-                    quality = client.get(
-                        f"/v1/full-conversions/{job_id}/quality",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(quality.status_code, 200)
-                    self.assertEqual(quality.json()["source_file"], "source.pdf")
-                    usage = client.get(
-                        f"/v1/full-conversions/{job_id}/usage",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(usage.status_code, 200)
-                    self.assertIn("md2json", usage.json()["phases"])
+                    self.assertEqual(client.post("/v1/doc2x-conversions").status_code, 404)
+                    self.assertEqual(client.get("/v1/doc2x-conversions/unknown").status_code, 404)
+                    self.assertEqual(client.post("/v1/full-conversions").status_code, 404)
+                    self.assertEqual(client.get("/v1/full-conversions/unknown").status_code, 404)
             finally:
                 markdown_service.shutdown()
                 doc2x_service.shutdown()

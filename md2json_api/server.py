@@ -5,22 +5,18 @@ import os
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from .doc2x_jobs import (
-    Doc2XJobNotFoundError,
-    Doc2XJobNotReadyError,
     Doc2XJobService,
     Doc2XWorkerSettings,
 )
 from .full_jobs import (
     FullConversionService,
-    FullJobNotFoundError,
-    FullJobNotReadyError,
     FullWorkerSettings,
 )
-from .jobs import JobNotFoundError, JobNotReadyError, JobNotRetryableError, JobService, WorkerSettings
+from .jobs import JobService, WorkerSettings
 from .source_jobs import (
     SourceConversionService,
     SourceJobNotFoundError,
@@ -109,127 +105,9 @@ def create_app(
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/v1/conversions", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
-    async def create_conversion(
-        file: Annotated[UploadFile, File(description="Markdown source file.")],
-        prompt_profile: Annotated[str, Form()] = "auto",
-        structure_mode: Annotated[str, Form()] = "auto",
-        audit_mode: Annotated[str, Form()] = "auto",
-    ) -> dict:
-        if not (file.filename or "").lower().endswith(".md"):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .md files are accepted.")
-        content = await file.read(max_upload_bytes + 1)
-        if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded Markdown is empty.")
-        if len(content) > max_upload_bytes:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Upload is too large.")
-        try:
-            return jobs.create_job(
-                filename=file.filename or "input.md",
-                markdown=content,
-                options={
-                    "prompt_profile": prompt_profile,
-                    "structure_mode": structure_mode,
-                    "audit_mode": audit_mode,
-                },
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    @app.post("/v1/doc2x-conversions", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
-    async def create_doc2x_conversion(
-        file: Annotated[UploadFile, File(description="Original PDF source file.")],
-        doc2x_model: Annotated[str, Form()] = "v3-2026",
-        formula_mode: Annotated[str, Form()] = "normal",
-        formula_level: Annotated[str, Form()] = "0",
-        merge_cross_page_forms: Annotated[bool, Form()] = False,
-    ) -> dict:
-        filename = file.filename or "input.pdf"
-        if not filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .pdf files are accepted.")
-        content = await file.read(doc2x_max_upload_bytes + 1)
-        if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
-        if len(content) > doc2x_max_upload_bytes:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Upload is too large.")
-        try:
-            return doc2x_jobs.create_job(
-                filename=filename,
-                content=content,
-                options={
-                    "doc2x_model": doc2x_model,
-                    "formula_mode": formula_mode,
-                    "formula_level": formula_level,
-                    "merge_cross_page_forms": merge_cross_page_forms,
-                },
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    @app.get("/v1/doc2x-conversions/{job_id}", dependencies=[protected])
-    def doc2x_conversion_status(job_id: str) -> dict:
-        try:
-            return doc2x_jobs.public_status(job_id)
-        except Doc2XJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-
-    @app.get("/v1/doc2x-conversions/{job_id}/markdown", dependencies=[protected])
-    def doc2x_conversion_markdown(job_id: str) -> PlainTextResponse:
-        try:
-            return PlainTextResponse(doc2x_jobs.markdown_text(job_id), media_type="text/markdown")
-        except Doc2XJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-        except Doc2XJobNotReadyError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
-
-    @app.get("/v1/doc2x-conversions/{job_id}/json", dependencies=[protected])
-    def doc2x_conversion_json(job_id: str) -> JSONResponse:
-        try:
-            return JSONResponse(doc2x_jobs.json_payload(job_id))
-        except Doc2XJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-        except Doc2XJobNotReadyError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
-
-    @app.post("/v1/full-conversions", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
-    async def create_full_conversion(
-        file: Annotated[UploadFile, File(description="Original PDF source file.")],
-        doc2x_model: Annotated[str, Form()] = "v3-2026",
-        formula_mode: Annotated[str, Form()] = "normal",
-        formula_level: Annotated[str, Form()] = "0",
-        merge_cross_page_forms: Annotated[bool, Form()] = False,
-        prompt_profile: Annotated[str, Form()] = "auto",
-        structure_mode: Annotated[str, Form()] = "auto",
-        audit_mode: Annotated[str, Form()] = "auto",
-    ) -> dict:
-        filename = file.filename or "input.pdf"
-        if not filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .pdf files are accepted.")
-        content = await file.read(doc2x_max_upload_bytes + 1)
-        if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
-        if len(content) > doc2x_max_upload_bytes:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Upload is too large.")
-        try:
-            return full_jobs.create_job(
-                filename=filename,
-                content=content,
-                options={
-                    "doc2x_model": doc2x_model,
-                    "formula_mode": formula_mode,
-                    "formula_level": formula_level,
-                    "merge_cross_page_forms": merge_cross_page_forms,
-                    "prompt_profile": prompt_profile,
-                    "structure_mode": structure_mode,
-                    "audit_mode": audit_mode,
-                },
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
     @app.post("/v1/source-conversions", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
     async def create_source_conversion(
-        file: Annotated[UploadFile, File(description="Markdown or PDF source file.")],
+        file: Annotated[UploadFile, File(description="Markdown, PDF, or image source file.")],
         prompt_profile: Annotated[str, Form()] = "auto",
         structure_mode: Annotated[str, Form()] = "auto",
         audit_mode: Annotated[str, Form()] = "auto",
@@ -289,6 +167,32 @@ def create_app(
         except SourceJobNotReadyError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
 
+    @app.put("/v1/source-conversions/{job_id}/annotation", dependencies=[protected])
+    def save_source_annotation(
+        job_id: str,
+        payload: Annotated[dict, Body(description="Complete md2json.annotation.v1 document.")],
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(source_jobs.save_annotation_payload(job_id, payload))
+        except SourceJobNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
+        except SourceJobNotReadyError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    @app.get("/v1/source-conversions/{job_id}/annotation", dependencies=[protected])
+    def source_annotation(job_id: str) -> JSONResponse:
+        try:
+            saved = source_jobs.saved_annotation_payload(job_id)
+            if saved is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved annotation not found.")
+            return JSONResponse(saved)
+        except SourceJobNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
+        except SourceJobNotReadyError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
+
     @app.get("/v1/source-conversions/{job_id}/quality", dependencies=[protected])
     def source_conversion_quality(job_id: str) -> JSONResponse:
         try:
@@ -307,86 +211,4 @@ def create_app(
         except SourceJobNotReadyError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
 
-    @app.get("/v1/full-conversions/{job_id}", dependencies=[protected])
-    def full_conversion_status(job_id: str) -> dict:
-        try:
-            return full_jobs.public_status(job_id)
-        except FullJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-
-    @app.get("/v1/full-conversions/{job_id}/result", dependencies=[protected])
-    def full_conversion_result(job_id: str) -> JSONResponse:
-        try:
-            return JSONResponse(full_jobs.result_payload(job_id))
-        except FullJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-        except FullJobNotReadyError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
-
-    @app.get("/v1/full-conversions/{job_id}/quality", dependencies=[protected])
-    def full_conversion_quality(job_id: str) -> JSONResponse:
-        try:
-            return JSONResponse(full_jobs.quality_payload(job_id))
-        except FullJobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-        except FullJobNotReadyError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
-
-    @app.get("/v1/conversions/{job_id}", dependencies=[protected])
-    def conversion_status(job_id: str) -> dict:
-        try:
-            return jobs.public_status(job_id)
-        except JobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-
-    @app.post("/v1/conversions/{job_id}/resume", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
-    def resume_conversion(job_id: str) -> dict:
-        try:
-            return jobs.resume_failed_job(job_id)
-        except JobNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-        except JobNotRetryableError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Only failed jobs can be resumed; current status is {exc}.",
-            ) from exc
-
-    @app.get("/v1/conversions/{job_id}/result", dependencies=[protected])
-    def conversion_result(job_id: str) -> JSONResponse:
-        return JSONResponse(_load_public_result(jobs, job_id, quality=False))
-
-    @app.get("/v1/conversions/{job_id}/quality", dependencies=[protected])
-    def conversion_quality(job_id: str) -> JSONResponse:
-        return JSONResponse(_load_public_result(jobs, job_id, quality=True))
-
-    @app.get("/v1/conversions/{job_id}/usage", dependencies=[protected])
-    def conversion_usage(job_id: str) -> JSONResponse:
-        return JSONResponse(_load_public_usage(jobs.usage_payload, job_id))
-
-    @app.get("/v1/doc2x-conversions/{job_id}/usage", dependencies=[protected])
-    def doc2x_usage(job_id: str) -> JSONResponse:
-        return JSONResponse(_load_public_usage(doc2x_jobs.usage_payload, job_id))
-
-    @app.get("/v1/full-conversions/{job_id}/usage", dependencies=[protected])
-    def full_conversion_usage(job_id: str) -> JSONResponse:
-        return JSONResponse(_load_public_usage(full_jobs.usage_payload, job_id))
-
     return app
-
-
-def _load_public_result(jobs: JobService, job_id: str, *, quality: bool):
-    try:
-        return jobs.quality_payload(job_id) if quality else jobs.result_payload(job_id)
-    except JobNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-    except JobNotReadyError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
-
-
-def _load_public_usage(loader, job_id: str):
-    try:
-        return loader(job_id)
-    except (JobNotFoundError, Doc2XJobNotFoundError, FullJobNotFoundError) as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
-    except (JobNotReadyError, Doc2XJobNotReadyError, FullJobNotReadyError) as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc

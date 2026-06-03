@@ -16,7 +16,7 @@ except ModuleNotFoundError:
 
 @unittest.skipIf(TestClient is None, "API optional dependencies are not installed.")
 class ServerTests(unittest.TestCase):
-    def test_authenticated_conversion_exposes_only_public_artifacts(self) -> None:
+    def test_legacy_public_conversion_routes_are_not_registered(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             service = JobService(
                 WorkerSettings(
@@ -28,41 +28,9 @@ class ServerTests(unittest.TestCase):
             app = create_app(service, api_token="test-token")
             try:
                 with TestClient(app) as client:
-                    unauthenticated = client.post(
-                        "/v1/conversions",
-                        files={"file": ("notes.md", b"## 1 Test\n\nDefinition 1. Value.\n", "text/markdown")},
-                    )
-                    self.assertEqual(unauthenticated.status_code, 401)
-                    response = client.post(
-                        "/v1/conversions",
-                        headers={"Authorization": "Bearer test-token"},
-                        files={"file": ("notes.md", b"## 1 Test\n\nDefinition 1. Value.\n", "text/markdown")},
-                        data={"structure_mode": "hard", "audit_mode": "off"},
-                    )
-                    self.assertEqual(response.status_code, 202)
-                    job_id = response.json()["job_id"]
-                    terminal = _poll(client, job_id)
-                    self.assertEqual(terminal["status"], "succeeded")
-                    result = client.get(
-                        f"/v1/conversions/{job_id}/result",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(result.status_code, 200)
-                    self.assertEqual(result.json()[0]["env"], "def")
-                    quality = client.get(
-                        f"/v1/conversions/{job_id}/quality",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(quality.json()["source_file"], "notes.md")
-                    self.assertNotIn(temp, quality.text)
-                    self.assertNotIn("output_dir", terminal)
-                    service.store.update_status(job_id, status="failed", phase="failed")
-                    resumed = client.post(
-                        f"/v1/conversions/{job_id}/resume",
-                        headers={"Authorization": "Bearer test-token"},
-                    )
-                    self.assertEqual(resumed.status_code, 202)
-                    self.assertEqual(_poll(client, job_id)["status"], "succeeded")
+                    self.assertEqual(client.post("/v1/conversions").status_code, 404)
+                    self.assertEqual(client.get("/v1/conversions/unknown").status_code, 404)
+                    self.assertEqual(client.post("/v1/conversions/unknown/resume").status_code, 404)
             finally:
                 service.shutdown()
 
@@ -99,6 +67,32 @@ class ServerTests(unittest.TestCase):
                     self.assertEqual(payload["source"]["source_type"], "markdown")
                     self.assertEqual(payload["items"][0]["type"], "def")
                     self.assertIn("issues", payload["items"][0]["audit"])
+                    rejected = client.put(
+                        f"/v1/source-conversions/{job_id}/annotation",
+                        headers={"Authorization": "Bearer test-token"},
+                        json={**payload, "schema_version": "legacy"},
+                    )
+                    self.assertEqual(rejected.status_code, 400)
+                    payload["items"][0]["statement"] = "Edited Definition 1. Value."
+                    saved = client.put(
+                        f"/v1/source-conversions/{job_id}/annotation",
+                        headers={"Authorization": "Bearer test-token"},
+                        json=payload,
+                    )
+                    self.assertEqual(saved.status_code, 200)
+                    self.assertTrue(saved.json()["saved"])
+                    self.assertEqual(saved.json()["item_count"], 1)
+                    annotation = client.get(
+                        f"/v1/source-conversions/{job_id}/annotation",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(annotation.status_code, 200)
+                    self.assertEqual(annotation.json()["items"][0]["statement"], "Edited Definition 1. Value.")
+                    updated_result = client.get(
+                        f"/v1/source-conversions/{job_id}/result",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(updated_result.json()["items"][0]["statement"], "Edited Definition 1. Value.")
                     quality = client.get(
                         f"/v1/source-conversions/{job_id}/quality",
                         headers={"Authorization": "Bearer test-token"},
@@ -112,20 +106,6 @@ class ServerTests(unittest.TestCase):
                     self.assertEqual(usage.status_code, 200)
             finally:
                 service.shutdown()
-
-
-def _poll(client: TestClient, job_id: str) -> dict:
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        response = client.get(
-            f"/v1/conversions/{job_id}",
-            headers={"Authorization": "Bearer test-token"},
-        )
-        payload = response.json()
-        if payload["status"] in {"succeeded", "failed"}:
-            return payload
-        time.sleep(0.01)
-    raise AssertionError("Job did not finish before timeout.")
 
 
 def _poll_source(client: TestClient, job_id: str) -> dict:
