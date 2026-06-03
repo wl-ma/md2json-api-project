@@ -26,6 +26,7 @@ class AzureChatSectionExtractor:
         timeout: float = 600,
         trace_dir: Path | None = None,
         prompt_profile: str = "auto",
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
         self.azure_endpoint = azure_endpoint
@@ -35,6 +36,7 @@ class AzureChatSectionExtractor:
         self.timeout = timeout
         self.trace_dir = trace_dir
         self.prompt_profile = prompt_profile
+        self.reasoning_effort = reasoning_effort
         self._client = None
 
     def set_trace_dir(self, trace_dir: Path) -> None:
@@ -71,7 +73,10 @@ class AzureChatSectionExtractor:
             "response_format": chat_json_schema_response_format(),
         }
         if self.max_output_tokens:
-            request["max_tokens"] = self.max_output_tokens
+            token_budget_key = "max_completion_tokens" if self.reasoning_effort else "max_tokens"
+            request[token_budget_key] = self.max_output_tokens
+        if self.reasoning_effort:
+            request["reasoning_effort"] = self.reasoning_effort
 
         usage: dict[str, Any] | None = None
         if self.client is False:

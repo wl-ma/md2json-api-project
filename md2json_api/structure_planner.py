@@ -83,6 +83,7 @@ class OpenAIStructurePlanner:
         max_output_tokens: int | None = None,
         timeout: float = 600,
         trace_dir: Path | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
         self.api_key = api_key
@@ -90,6 +91,7 @@ class OpenAIStructurePlanner:
         self.max_output_tokens = max_output_tokens
         self.timeout = timeout
         self.trace_dir = trace_dir
+        self.reasoning_effort = reasoning_effort
         self._client = None
 
     def set_trace_dir(self, trace_dir: Path) -> None:
@@ -135,6 +137,8 @@ class OpenAIStructurePlanner:
         )
         if self.max_output_tokens:
             request["max_output_tokens"] = self.max_output_tokens
+        if self.reasoning_effort:
+            request["reasoning"] = {"effort": self.reasoning_effort}
         response = _with_retries(lambda: self.client.responses.create(**request))
         output_text = getattr(response, "output_text", None) or _collect_response_text(response)
         payload = _parse_structure_payload(output_text)
@@ -165,6 +169,7 @@ class AzureChatStructurePlanner:
         max_output_tokens: int | None = None,
         timeout: float = 600,
         trace_dir: Path | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
         self.azure_endpoint = azure_endpoint
@@ -173,6 +178,7 @@ class AzureChatStructurePlanner:
         self.max_output_tokens = max_output_tokens
         self.timeout = timeout
         self.trace_dir = trace_dir
+        self.reasoning_effort = reasoning_effort
         self._client = None
 
     def set_trace_dir(self, trace_dir: Path) -> None:
@@ -218,7 +224,10 @@ class AzureChatStructurePlanner:
             provider="azure",
         )
         if self.max_output_tokens:
-            request["max_tokens"] = self.max_output_tokens
+            token_budget_key = "max_completion_tokens" if self.reasoning_effort else "max_tokens"
+            request[token_budget_key] = self.max_output_tokens
+        if self.reasoning_effort:
+            request["reasoning_effort"] = self.reasoning_effort
         usage = None
         if self.client is False:
             output_text = _with_retries(lambda: self._plan_via_rest(request))

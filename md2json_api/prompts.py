@@ -93,6 +93,8 @@ FIELD_SPEC = EXTRACTION_FIELD_SPEC
 SPAN_INCLUSION_RULES = """Span inclusion rules:
 
 - start_occurrence and end_occurrence are 1-based counts from the beginning of the supplied Markdown section.
+- Occurrence counts exact case-sensitive occurrences of the exact anchor string, not semantic/math-equivalent occurrences.
+- Choose anchors that are long enough to be unique in the section: prefer the full visible item heading plus the opening words/formula for content spans, and a unique next boundary for excluded end_anchor values.
 - include_start/include_end control whether the full anchor string itself is copied into the field.
 - If include_start is false, the copied text starts after the entire start_anchor. Therefore, do not put proof-body words or formulas inside a start_anchor that will be excluded.
 - If include_end is false, the copied text stops before the entire end_anchor. Therefore, do not put statement/proof text that must be preserved inside an excluded end_anchor.
@@ -294,6 +296,7 @@ When source tools are available:
 - Use search_source and extract_source_span to locate exact source spans for repaired content/proof. The tools copy spans from the Markdown; they do not decide what counts as a theorem, definition, lemma, etc.
 - Choose source anchors that are long enough to be unique. Prefer the complete visible item heading plus the opening words/formula for content spans. For proof spans, prefer the explicit proof marker plus the item label and distinctive nearby words/formulas rather than generic phrases.
 - Make source_order_anchor the exact visible heading or opening sentence of the item itself, not a nearby note, preliminary remark, or proof marker.
+- In build_repaired_items, set source_order_occurrence to the 1-based occurrence of source_order_anchor from the beginning of the supplied Markdown section.
 - Proof spans in build_repaired_items are resolved after that item's content span. Content and proof spans must stay within the current item and must not cross the next item's source_order_anchor.
 - In build_repaired_items, enumerate the complete final item array. Preserve unchanged current items by label, and use source spans for any new or modified item text.
 - Never handwrite repaired content/proof text when a source span can be used.
@@ -541,6 +544,10 @@ def build_structure_prompt(
 Source file: {source_name}
 Total source lines: {source_line_count}
 Prompt profile: {prompt_profile}
+
+If Prompt profile is textbook, chapter-end problem/exercise/application blocks such as
+Problems, Exercises, Review Problems, Applications, or Additional Problems are canonical
+sections. Put them in sections, not back_matter_ranges.
 
 Hard splitter draft sections:
 {chr(10).join(hard_lines) if hard_lines else "(none)"}

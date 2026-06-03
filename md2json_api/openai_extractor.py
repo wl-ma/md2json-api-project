@@ -22,6 +22,7 @@ class OpenAISectionExtractor:
         timeout: float = 600,
         trace_dir: Path | None = None,
         prompt_profile: str = "auto",
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
         self.api_key = api_key
@@ -30,6 +31,7 @@ class OpenAISectionExtractor:
         self.timeout = timeout
         self.trace_dir = trace_dir
         self.prompt_profile = prompt_profile
+        self.reasoning_effort = reasoning_effort
         self._client = None
 
     def set_trace_dir(self, trace_dir: Path) -> None:
@@ -67,6 +69,8 @@ class OpenAISectionExtractor:
         }
         if self.max_output_tokens:
             request["max_output_tokens"] = self.max_output_tokens
+        if self.reasoning_effort:
+            request["reasoning"] = {"effort": self.reasoning_effort}
 
         response = _with_retries(lambda: self.client.responses.create(**request))
         output_text = getattr(response, "output_text", None)

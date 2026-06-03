@@ -4,9 +4,17 @@ import argparse
 import os
 from pathlib import Path
 
-from .converter import ConverterConfig, MarkdownJsonConverter
+from .converter import ConverterConfig, MarkdownJsonConverter, REASONING_EFFORT_CHOICES
 from .prompts import PROMPT_PROFILES
 from .splitter import split_markdown_document
+
+
+def _normalized_env(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip().lower()
+    return value or None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--azure-endpoint", default=os.environ.get("AZURE_OPENAI_ENDPOINT"))
     convert.add_argument("--azure-api-version", default=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"))
     convert.add_argument("--max-output-tokens", type=int, default=None)
+    convert.add_argument(
+        "--reasoning-effort",
+        choices=REASONING_EFFORT_CHOICES,
+        default=_normalized_env("MD2JSON_REASONING_EFFORT"),
+        help="Optional reasoning effort for reasoning models: none, minimal, low, medium, high, or xhigh.",
+    )
     convert.add_argument(
         "--llm-timeout",
         type=float,
@@ -106,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             audit_mode=args.audit_mode,
             structure_mode=args.structure_mode,
             resume=args.resume,
+            reasoning_effort=args.reasoning_effort,
         )
         result = MarkdownJsonConverter(config).convert(args.input_md, args.out_dir)
         print(f"wrote {result.items_total} items across {result.sections_written} sections")

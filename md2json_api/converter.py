@@ -37,6 +37,8 @@ from .structure_planner import (
 from .writers import write_outputs
 
 
+REASONING_EFFORT_CHOICES = ("none", "minimal", "low", "medium", "high", "xhigh")
+
 SOURCE_LABEL_ALIASES = {
     "def": ("Definition", "Definitions", "Def.", "Def", "定义"),
     "thm": ("Theorem", "THEOREM", "Thm.", "Thm", "定理"),
@@ -99,6 +101,7 @@ class ConverterConfig:
     audit_mode: str = "auto"
     structure_mode: str = "auto"
     resume: bool = False
+    reasoning_effort: str | None = None
 
 
 class MarkdownJsonConverter:
@@ -278,6 +281,7 @@ class MarkdownJsonConverter:
                 base_url=config.base_url,
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
+                reasoning_effort=config.reasoning_effort,
             )
         if config.backend == "azure":
             if not config.azure_endpoint:
@@ -289,6 +293,7 @@ class MarkdownJsonConverter:
                 api_key=config.api_key,
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
+                reasoning_effort=config.reasoning_effort,
             )
         return NoopStructurePlanner()
 
@@ -306,6 +311,7 @@ class MarkdownJsonConverter:
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
                 prompt_profile=config.prompt_profile,
+                reasoning_effort=config.reasoning_effort,
             )
         if config.backend == "azure":
             if not config.azure_endpoint:
@@ -318,6 +324,7 @@ class MarkdownJsonConverter:
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
                 prompt_profile=config.prompt_profile,
+                reasoning_effort=config.reasoning_effort,
             )
         raise ValueError(f"Unknown backend: {config.backend}")
 
@@ -335,6 +342,7 @@ class MarkdownJsonConverter:
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
                 prompt_profile=config.prompt_profile,
+                reasoning_effort=config.reasoning_effort,
             )
         if config.backend == "azure":
             if not config.azure_endpoint:
@@ -347,6 +355,7 @@ class MarkdownJsonConverter:
                 max_output_tokens=config.max_output_tokens,
                 timeout=config.llm_timeout,
                 prompt_profile=config.prompt_profile,
+                reasoning_effort=config.reasoning_effort,
             )
         return NoopSectionAuditRepairer()
 

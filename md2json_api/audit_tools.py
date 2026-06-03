@@ -135,6 +135,10 @@ def audit_source_tool_schemas() -> list[dict[str, Any]]:
                                         "type": ["string", "null"],
                                         "description": "Short exact source substring used only for ordering/validation.",
                                     },
+                                    "source_order_occurrence": {
+                                        "type": "integer",
+                                        "description": "1-based occurrence of source_order_anchor from the beginning of the section.",
+                                    },
                                     "reason": {"type": "string"},
                                 },
                                 "required": [
@@ -146,6 +150,7 @@ def audit_source_tool_schemas() -> list[dict[str, Any]]:
                                     "proof_span",
                                     "preserve_current_label",
                                     "source_order_anchor",
+                                    "source_order_occurrence",
                                     "reason",
                                 ],
                             },
@@ -293,7 +298,7 @@ class AuditSourceToolExecutor:
         current = self.current_by_label.get(preserve_label)
         content_span = raw.get("content_span")
         proof_span = raw.get("proof_span")
-        anchor_position = _find_first(self.section.text, str(raw.get("source_order_anchor") or ""))
+        anchor_position = _source_order_anchor_position(self.section.text, raw)
         order_position = anchor_position if anchor_position is not None else 10**12
 
         content_result = None
@@ -386,20 +391,15 @@ class AuditSourceToolExecutor:
         raw: dict[str, Any],
         following_raws: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        anchor = str(raw.get("source_order_anchor") or "").strip()
-        if not anchor:
-            return None
-        start = _find_first(self.section.text, anchor)
+        start = _source_order_anchor_position(self.section.text, raw)
         if start is None:
             return None
+        anchor = str(raw.get("source_order_anchor") or "").strip()
         end = len(self.section.text)
         search_from = start + max(1, len(anchor))
         for following in following_raws:
-            next_anchor = str(following.get("source_order_anchor") or "").strip()
-            if not next_anchor:
-                continue
-            next_pos = _find_first_after(self.section.text, next_anchor, search_from)
-            if next_pos is not None:
+            next_pos = _source_order_anchor_position(self.section.text, following)
+            if next_pos is not None and next_pos >= search_from:
                 end = next_pos
                 break
         if end <= start:
@@ -534,12 +534,10 @@ def _next_following_anchor_position(
 ) -> int | None:
     candidates: list[int] = []
     for following in following_raws:
-        anchor = str(following.get("source_order_anchor") or "").strip()
-        if not anchor:
-            continue
-        pos = _find_first_after(source_text, anchor, start)
+        pos = _source_order_anchor_position(source_text, following)
         if pos is not None:
-            candidates.append(pos)
+            if pos >= start:
+                candidates.append(pos)
     return min(candidates) if candidates else None
 
 
@@ -677,6 +675,14 @@ def _find_first_after(text: str, query: str, start: int) -> int | None:
         return None
     pos = text.find(query, start)
     return pos if pos >= 0 else None
+
+
+def _source_order_anchor_position(source_text: str, raw: dict[str, Any]) -> int | None:
+    anchor = str(raw.get("source_order_anchor") or "").strip()
+    if not anchor:
+        return None
+    occurrence = max(1, int(raw.get("source_order_occurrence") or 1))
+    return _find_nth(source_text, anchor, occurrence, start=0)
 
 
 def _find_nth(text: str, query: str, occurrence: int, *, start: int = 0) -> int | None:

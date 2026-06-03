@@ -456,6 +456,7 @@ python3 -m md2json_api.cli convert INPUT_MD [options]
 - `--azure-endpoint URL`：Azure OpenAI endpoint。默认读取 `AZURE_OPENAI_ENDPOINT`。`--backend azure` 时必需。
 - `--azure-api-version VERSION`：Azure OpenAI API version。默认读取 `AZURE_OPENAI_API_VERSION`，未设置时为 `2024-10-21`。
 - `--max-output-tokens N`：限制单个 section 调用的最大输出 token 数。默认不传。
+- `--reasoning-effort {none,minimal,low,medium,high,xhigh}`：可选的 reasoning effort。默认读取 `MD2JSON_REASONING_EFFORT`，未设置时不传，由模型/服务端默认决定。Azure Chat Completions 使用 `reasoning_effort`；OpenAI Responses API 使用 `reasoning.effort`。
 - `--prompt-profile {auto,textbook,paper,chinese_math}`：prompt profile。默认读取 `MD2JSON_PROMPT_PROFILE`，未设置时为 `auto`。
 - `--structure-mode {auto,llm,hard}`：是否用 LLM 规划 chapter/section 结构。
   - `auto`：默认；当硬 splitter 发现 synthetic section、裸 numbered heading、heading 层级混乱等可疑结构时，先调用 LLM structure planner。
@@ -475,6 +476,7 @@ python3 -m md2json_api.cli convert INPUT_MD [options]
 - `AZURE_OPENAI_ENDPOINT`：Azure endpoint。
 - `AZURE_OPENAI_API_VERSION`：Azure API version。
 - `MD2JSON_MODEL`：默认模型名/deployment 名。
+- `MD2JSON_REASONING_EFFORT`：默认 reasoning effort，可设为 `none`、`minimal`、`low`、`medium`、`high` 或 `xhigh`。
 - `MD2JSON_PROMPT_PROFILE`：默认 prompt profile。
 - `MD2JSON_STRUCTURE_MODE`：默认 structure mode。
 - `MD2JSON_AUDIT_MODE`：默认 audit mode。

@@ -131,6 +131,113 @@ class AuditSourceToolTests(unittest.TestCase):
         )
         self.assertEqual(result["tool_validation"]["declared_labels_count"], 2)
 
+    def test_source_order_anchor_occurrence_disambiguates_repeated_anchors(self) -> None:
+        section = MarkdownSection(
+            index=2,
+            context=SectionContext(
+                chapter="Test notes",
+                chapter_number="",
+                section="2. Repeated anchors",
+                section_number="2",
+            ),
+            text=(
+                "(3) Let \\( F \\) be a subfield of \\( k \\) . Earlier exercise.\n\n"
+                "Definition 2.1. A middle definition.\n\n"
+                "(3) Let \\( F \\) be a subfield of \\( k \\) . Later exercise.\n\n"
+                "(4) Final exercise.\n"
+            ),
+            start_line=1,
+            end_line=7,
+            heading_level=3,
+            source_heading="2. Repeated anchors",
+        )
+        current_items = [
+            {
+                "index": 1,
+                "label": "Exercise 2.0.3",
+                "env": "exercise",
+                "number_components": ["2", "0", "3"],
+                "context": section.context.as_json(),
+                "content": "(3) Let \\( F \\) be a subfield of \\( k \\) . Earlier exercise.",
+                "dependencies": [],
+                "proof": None,
+            },
+            {
+                "index": 2,
+                "label": "Definition 2.1",
+                "env": "def",
+                "number_components": ["2", "1"],
+                "context": section.context.as_json(),
+                "content": "Definition 2.1. A middle definition.",
+                "dependencies": [],
+                "proof": None,
+            },
+            {
+                "index": 3,
+                "label": "Exercise 2.2.3",
+                "env": "exercise",
+                "number_components": ["2", "2", "3"],
+                "context": section.context.as_json(),
+                "content": "(3) Let \\( F \\) be a subfield of \\( k \\) . Later exercise.",
+                "dependencies": [],
+                "proof": None,
+            },
+        ]
+        executor = AuditSourceToolExecutor(section, current_items)
+
+        result = executor.execute(
+            "build_repaired_items",
+            {
+                "audit_markdown": "Preserve repeated-anchor items.",
+                "overall_assessment": "no change",
+                "actions": [],
+                "open_questions": [],
+                "items": [
+                    {
+                        "label": "Exercise 2.0.3",
+                        "env": "exercise",
+                        "number_components": ["2", "0", "3"],
+                        "dependencies": [],
+                        "content_span": None,
+                        "proof_span": None,
+                        "preserve_current_label": "Exercise 2.0.3",
+                        "source_order_anchor": "(3) Let \\( F \\) be a subfield of \\( k \\) .",
+                        "source_order_occurrence": 1,
+                        "reason": "preserve the first repeated exercise",
+                    },
+                    {
+                        "label": "Definition 2.1",
+                        "env": "def",
+                        "number_components": ["2", "1"],
+                        "dependencies": [],
+                        "content_span": None,
+                        "proof_span": None,
+                        "preserve_current_label": "Definition 2.1",
+                        "source_order_anchor": "Definition 2.1.",
+                        "source_order_occurrence": 1,
+                        "reason": "preserve the middle definition",
+                    },
+                    {
+                        "label": "Exercise 2.2.3",
+                        "env": "exercise",
+                        "number_components": ["2", "2", "3"],
+                        "dependencies": [],
+                        "content_span": None,
+                        "proof_span": None,
+                        "preserve_current_label": "Exercise 2.2.3",
+                        "source_order_anchor": "(3) Let \\( F \\) be a subfield of \\( k \\) .",
+                        "source_order_occurrence": 2,
+                        "reason": "preserve the second repeated exercise",
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(
+            [item["label"] for item in result["repaired_items"]],
+            ["Exercise 2.0.3", "Definition 2.1", "Exercise 2.2.3"],
+        )
+
     def test_proof_span_searches_after_content_and_stops_at_next_item_anchor(self) -> None:
         section = MarkdownSection(
             index=3,
