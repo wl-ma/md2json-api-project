@@ -90,7 +90,7 @@ class Doc2XClient:
             "uid": str(uid),
             "to": "md",
             "formula_mode": options["formula_mode"],
-            "filename": _doc2x_export_filename(source_file),
+            "filename": source_file.stem[:50] or "document",
             "merge_cross_page_forms": options["merge_cross_page_forms"],
             "formula_level": _doc2x_formula_level(options["formula_level"]),
         }
