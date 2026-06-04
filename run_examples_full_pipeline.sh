@@ -6,7 +6,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 VENV_PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 
 INPUT_ROOT="${PROJECT_ROOT}/examples"
-OUTPUT_ROOT="${PROJECT_ROOT}/example_full_pipeline_outputs"
+OUTPUT_ROOT="${PROJECT_ROOT}/examples/example_full_pipeline_outputs"
 RESULTS_DIR="${OUTPUT_ROOT}/results"
 LOGS_DIR="${OUTPUT_ROOT}/logs"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_PYTHON}"

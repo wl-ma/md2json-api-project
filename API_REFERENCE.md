@@ -98,7 +98,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 | `doc2x_model` | string | 否 | `v3-2026` | PDF 路径使用 |
 | `formula_mode` | string | 否 | `normal` | PDF 路径使用，`normal` 或 `dollar` |
 | `formula_level` | string | 否 | `0` | PDF 路径使用，`0`、`1`、`2` |
-| `merge_cross_page_forms` | bool | 否 | `false` | PDF 路径使用 |
+| `merge_cross_page_forms` | string | 否 | `false` | PDF 路径使用，表单字段传 `true` 或 `false` |
 
 图片路径不向前端暴露额外 Doc2X 参数。服务端按 Doc2X 官方图片 OCR 接口要求，以图片二进制请求体调用 Doc2X。
 
