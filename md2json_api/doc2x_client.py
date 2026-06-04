@@ -12,6 +12,9 @@ from urllib import error, parse, request
 from .runtime import atomic_write_bytes, atomic_write_json, atomic_write_text
 
 
+DOC2X_EXPORT_FILENAME_MAX_BYTES = 50
+
+
 @dataclass(frozen=True)
 class Doc2XSettings:
     api_key: str | None
@@ -87,11 +90,11 @@ class Doc2XClient:
             "uid": str(uid),
             "to": "md",
             "formula_mode": options["formula_mode"],
-            "filename": source_file.stem,
+            "filename": _doc2x_export_filename(source_file),
             "merge_cross_page_forms": options["merge_cross_page_forms"],
-            "formula_level": options["formula_level"],
+            "formula_level": _doc2x_formula_level(options["formula_level"]),
         }
-        self._post_json("/api/v2/convert/parse", export_request)
+        _ensure_success(self._post_json("/api/v2/convert/parse", export_request), "Doc2X export")
         export_status = self._poll_export_status(str(uid), progress_callback)
         download_url = _require_nested(export_status, "data", "url")
 
@@ -326,6 +329,37 @@ def _require_nested(payload: dict[str, Any], *keys: str) -> Any:
     if current in (None, ""):
         raise RuntimeError("Doc2X response contains an empty required field.")
     return current
+
+
+def _ensure_success(payload: dict[str, Any], operation: str) -> None:
+    if payload.get("code") not in {None, "success"}:
+        raise RuntimeError(f"{operation} failed: {payload.get('code', 'unknown_error')}")
+
+
+def _doc2x_export_filename(source_file: Path) -> str:
+    stem = source_file.stem.strip() or "output"
+    cleaned = "".join(ch if ch.isalnum() or ch in "._- " else "_" for ch in stem).strip(" ._")
+    return _truncate_utf8(cleaned or "output", DOC2X_EXPORT_FILENAME_MAX_BYTES)
+
+
+def _truncate_utf8(value: str, max_bytes: int) -> str:
+    encoded = value.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return value
+    truncated = encoded[:max_bytes]
+    while truncated:
+        try:
+            return truncated.decode("utf-8").rstrip(" ._") or "output"
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+    return "output"
+
+
+def _doc2x_formula_level(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Doc2X formula_level must be an integer.") from exc
 
 
 def _markdown_from_zip(archive_path: Path) -> str | None:
