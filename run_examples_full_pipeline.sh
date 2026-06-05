@@ -7,12 +7,13 @@ VENV_PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 
 INPUT_ROOT="${PROJECT_ROOT}/examples"
 OUTPUT_ROOT="${PROJECT_ROOT}/examples/example_full_pipeline_outputs"
-RESULTS_DIR="${OUTPUT_ROOT}/results"
+DOC2X_RESULTS_DIR="${OUTPUT_ROOT}/doc2x_results"
+MD2JSON_RESULTS_DIR="${OUTPUT_ROOT}/md2json_results"
 LOGS_DIR="${OUTPUT_ROOT}/logs"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_PYTHON}"
 ENV_FILE="${MD2JSON_ENV_FILE:-/etc/md2json/md2json.env}"
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
-MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.2}"
+MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.5}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
 AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
 AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-10-21}"
@@ -39,7 +40,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
-MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.2}"
+MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.5}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
 AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
 AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-10-21}"
@@ -65,7 +66,8 @@ Runs the full local pipeline directly:
   PDF -> Doc2X -> Markdown -> md2json
 
 Outputs are stored per PDF under:
-  ${RESULTS_DIR}/<book_slug>/
+  ${DOC2X_RESULTS_DIR}/<book_slug>/
+  ${MD2JSON_RESULTS_DIR}/<book_slug>/
 
 Resume/skip behavior:
   - If a PDF already has a completed result.json, it is skipped.
@@ -137,7 +139,7 @@ case "$MD2JSON_BACKEND" in
     ;;
 esac
 
-mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+mkdir -p "$DOC2X_RESULTS_DIR" "$MD2JSON_RESULTS_DIR" "$LOGS_DIR"
 
 slugify_relpath() {
   local path="$1"
@@ -196,25 +198,30 @@ pdf_path = Path(sys.argv[2]).resolve()
 artifact_dir = Path(sys.argv[3]).resolve()
 rel_path = sys.argv[4]
 
+doc2x_artifact_dir = artifact_dir.parent.parent / "doc2x_results" / artifact_dir.name
+md2json_artifact_dir = artifact_dir.parent.parent / "md2json_results" / artifact_dir.name
+
 sys.path.insert(0, str(project_root))
 
 from md2json_api.converter import ConverterConfig, MarkdownJsonConverter
 from md2json_api.doc2x_client import Doc2XClient
 from md2json_api.runtime import atomic_write_json
 
-artifact_dir.mkdir(parents=True, exist_ok=True)
-shutil.copy2(pdf_path, artifact_dir / pdf_path.name)
+doc2x_artifact_dir.mkdir(parents=True, exist_ok=True)
+md2json_artifact_dir.mkdir(parents=True, exist_ok=True)
+shutil.copy2(pdf_path, doc2x_artifact_dir / pdf_path.name)
+shutil.copy2(pdf_path, md2json_artifact_dir / pdf_path.name)
 
-doc2x_dir = artifact_dir / "doc2x"
-md2json_out_dir = artifact_dir / "md2json_output"
-status_path = artifact_dir / "status.json"
-meta_path = artifact_dir / "meta.json"
-quality_export_path = artifact_dir / "quality.json"
-usage_export_path = artifact_dir / "usage.json"
-result_export_path = artifact_dir / "result.json"
+doc2x_dir = doc2x_artifact_dir / "doc2x"
+md2json_out_dir = md2json_artifact_dir / "md2json_output"
+status_path = md2json_artifact_dir / "status.json"
+meta_path = md2json_artifact_dir / "meta.json"
+quality_export_path = md2json_artifact_dir / "quality.json"
+usage_export_path = md2json_artifact_dir / "usage.json"
+result_export_path = md2json_artifact_dir / "result.json"
 
 backend = os.environ.get("MD2JSON_BACKEND", "openai")
-model = os.environ.get("MD2JSON_MODEL", "gpt-5.2")
+model = os.environ.get("MD2JSON_MODEL", "gpt-5.5")
 openai_api_key = os.environ.get("OPENAI_API_KEY") or None
 openai_base_url = os.environ.get("OPENAI_BASE_URL") or None
 azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT") or None
@@ -449,6 +456,7 @@ try:
             "doc2x_markdown_path": str(doc2x_markdown_path),
             "doc2x_json_path": str(doc2x_json_path),
             "doc2x_manifest_path": str(doc2x_manifest_path),
+            "doc2x_output_dir": str(doc2x_artifact_dir),
             "md2json_output_dir": str(result.out_dir),
             "result_path": str(result_export_path),
             "quality_path": str(quality_export_path),
@@ -510,7 +518,7 @@ main() {
       rel_path="${pdf_path#${INPUT_ROOT}/}"
       local slug
       slug="$(slugify_relpath "$rel_path")"
-      local artifact_dir="$RESULTS_DIR/$slug"
+      local artifact_dir="$MD2JSON_RESULTS_DIR/$slug"
       local log_path="$LOGS_DIR/${slug}.log"
       mkdir -p "$artifact_dir"
 
@@ -550,7 +558,7 @@ payload = {
 summary_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
-  echo "run finished: total=$total succeeded=$succeeded failed=$failed skipped=$skipped results=$RESULTS_DIR"
+  echo "run finished: total=$total succeeded=$succeeded failed=$failed skipped=$skipped doc2x_results=$DOC2X_RESULTS_DIR md2json_results=$MD2JSON_RESULTS_DIR"
 }
 
 main "$@"
