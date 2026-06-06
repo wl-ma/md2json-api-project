@@ -4,7 +4,9 @@ import argparse
 import os
 from pathlib import Path
 
+from .cache_gc import CacheGcService, CacheGcSettings
 from .converter import ConverterConfig, MarkdownJsonConverter, REASONING_EFFORT_CHOICES
+from .jobs import WorkerSettings
 from .prompts import PROMPT_PROFILES
 from .splitter import split_markdown_document
 
@@ -74,6 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
 
+    cleanup_cache = subparsers.add_parser("cleanup-cache", help="Clean cached job artifacts.")
+    cleanup_cache.add_argument("--jobs-root", type=Path, default=None)
+    cleanup_cache.add_argument("--dry-run", action="store_true")
+
     return parser
 
 
@@ -136,6 +142,15 @@ def main(argv: list[str] | None = None) -> int:
         from .server import create_app
 
         uvicorn.run(create_app(), host=args.host, port=args.port)
+        return 0
+
+    if args.command == "cleanup-cache":
+        settings = CacheGcSettings.from_environment()
+        if args.dry_run:
+            settings.dry_run = True
+        jobs_root = args.jobs_root.resolve() if args.jobs_root else WorkerSettings.from_environment().jobs_root.resolve()
+        report = CacheGcService(jobs_root=jobs_root, settings=settings).run()
+        print(report.to_dict())
         return 0
 
     parser.print_help()

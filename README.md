@@ -256,6 +256,38 @@ python3 -m md2json_api.cli serve --host 127.0.0.1 --port 8000
 `MD2JSON_ALLOW_UNAUTHENTICATED=true`。生产环境应由 Nginx 或 Caddy 在前端终止 HTTPS，只代理必要的
 API 路径，不要将 `/srv/md2json/jobs` 映射为静态目录。
 
+### 缓存与自动清理
+
+服务会在 `MD2JSON_JOBS_ROOT` 下缓存任务输入、Doc2X 中间结果、md2json 输出和调试 trace。当前实现提供独立清理命令：
+
+```bash
+python3 -m md2json_api.cli cleanup-cache --dry-run
+python3 scripts/cleanup_cache.py --dry-run
+```
+
+默认规则：
+
+- `failed` 任务：7 天后清理
+- `succeeded` 且无人工标注：14 天后清理
+- `succeeded` 且有人工标注：180 天后清理
+- 调试目录（如 `api_calls/`、`audit_api_calls/`、`mock_api_calls/`、`structure_api_call/`）：1 天后清理
+- `annotation-documents`：默认不自动删除
+
+可通过环境变量配置：
+
+```text
+MD2JSON_CACHE_GC_ENABLED=true
+MD2JSON_CACHE_DELETE_FAILED_AFTER_DAYS=7
+MD2JSON_CACHE_DELETE_SUCCEEDED_AFTER_DAYS=14
+MD2JSON_CACHE_DELETE_ANNOTATED_AFTER_DAYS=180
+MD2JSON_CACHE_DELETE_ANNOTATION_DOCUMENTS_AFTER_DAYS=180
+MD2JSON_CACHE_KEEP_ANNOTATION_DOCUMENTS=true
+MD2JSON_CACHE_DELETE_DEBUG_AFTER_DAYS=1
+MD2JSON_CACHE_GC_BATCH_LIMIT=500
+```
+
+建议通过 systemd timer 定时执行清理命令，而不是在 API 请求路径中同步删除缓存。
+
 ### API 合约
 
 创建转换任务：

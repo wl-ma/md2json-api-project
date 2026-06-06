@@ -25,6 +25,7 @@
 | 能力 | 入口 | 输出 |
 |---|---|---|
 | 多格式上传并转换为标注 JSON | `/v1/source-conversions` | `md2json.annotation.v1` |
+| 查询原始文档解析任务列表 | `/v1/source-conversions` | 任务状态列表 |
 | 保存人工标注修改结果 | `/v1/source-conversions/{job_id}/annotation` | `md2json.annotation.v1` |
 | 读取质量摘要 | `/v1/source-conversions/{job_id}/quality` | `quality` 对象 |
 | 读取脱敏用量统计 | `/v1/source-conversions/{job_id}/usage` | usage 对象 |
@@ -232,7 +233,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 | `doc2x_model` | string | 否 | `v3-2026` | PDF 路径使用 |
 | `formula_mode` | string | 否 | `normal` | PDF 路径使用，`normal` 或 `dollar` |
 | `formula_level` | string | 否 | `0` | PDF 路径使用，`0`、`1`、`2` |
-| `merge_cross_page_forms` | string | 否 | `false` | PDF 路径使用，表单字段传 `true` 或 `false` |
+| `merge_cross_page_forms` | boolean | 否 | `false` | PDF 路径使用，表单字段传 `true` 或 `false` |
 
 图片路径不向前端暴露额外 Doc2X 参数。服务端按 Doc2X 官方图片 OCR 接口要求，以图片二进制请求体调用 Doc2X。
 

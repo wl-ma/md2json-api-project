@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from .annotation_docs import AnnotationDocumentNotFoundError, AnnotationDocumentService
 from .doc2x_jobs import (
     Doc2XJobService,
     Doc2XWorkerSettings,
@@ -50,6 +51,7 @@ def create_app(
         )
     )
     source_jobs = SourceConversionService(markdown_jobs=jobs, full_jobs=full_jobs)
+    annotation_docs = AnnotationDocumentService(jobs.settings.jobs_root / "annotation_documents")
     token = api_token if api_token is not None else os.environ.get("MD2JSON_API_TOKEN")
     allow_public = (
         allow_unauthenticated
@@ -63,6 +65,7 @@ def create_app(
             doc2x_jobs.shutdown()
         if owned_full_service:
             full_jobs.shutdown()
+        annotation_docs.shutdown()
         raise RuntimeError(
             "MD2JSON_API_TOKEN is required for the API service. "
             "Set MD2JSON_ALLOW_UNAUTHENTICATED=true only for isolated local testing."
@@ -88,6 +91,7 @@ def create_app(
     app.state.doc2x_jobs = doc2x_jobs
     app.state.full_jobs = full_jobs
     app.state.source_jobs = source_jobs
+    app.state.annotation_docs = annotation_docs
 
     def authorize(authorization: Annotated[str | None, Header()] = None) -> None:
         if allow_public:
@@ -151,6 +155,18 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    @app.get("/v1/source-conversions", dependencies=[protected])
+    def list_source_conversions(
+        source_type: str | None = None,
+        status_filter: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        if source_type is not None and source_type not in {"markdown", "pdf", "image"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported source_type.")
+        if status_filter is not None and status_filter not in {"queued", "running", "succeeded", "failed"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported status.")
+        return source_jobs.list_jobs(source_type=source_type, status=status_filter, limit=limit)
+
     @app.get("/v1/source-conversions/{job_id}", dependencies=[protected])
     def source_conversion_status(job_id: str) -> dict:
         try:
@@ -210,5 +226,48 @@ def create_app(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
         except SourceJobNotReadyError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
+
+    @app.post("/v1/annotation-documents", dependencies=[protected])
+    async def create_annotation_document(
+        file: Annotated[UploadFile, File(description="md2json.annotation.v1 JSON file.")],
+    ) -> dict:
+        filename = file.filename or "annotation.json"
+        if not filename.lower().endswith(".json"):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .json files are accepted.")
+        content = await file.read(max_upload_bytes + 1)
+        if not content:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
+        if len(content) > max_upload_bytes:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Upload is too large.")
+        try:
+            payload = __import__("json").loads(content.decode("utf-8"))
+            return annotation_docs.create(filename=filename, payload=payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON document.") from exc
+
+    @app.get("/v1/annotation-documents", dependencies=[protected])
+    def list_annotation_documents(limit: int = 100) -> list[dict]:
+        return annotation_docs.list_documents(limit=limit)
+
+    @app.get("/v1/annotation-documents/{annotation_id}", dependencies=[protected])
+    def get_annotation_document(annotation_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(annotation_docs.get_payload(annotation_id))
+        except AnnotationDocumentNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Annotation document not found.") from exc
+
+    @app.put("/v1/annotation-documents/{annotation_id}", dependencies=[protected])
+    def update_annotation_document(
+        annotation_id: str,
+        payload: Annotated[dict, Body(description="Complete md2json.annotation.v1 document.")],
+    ) -> JSONResponse:
+        try:
+            return JSONResponse(annotation_docs.update_payload(annotation_id, payload))
+        except AnnotationDocumentNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Annotation document not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return app

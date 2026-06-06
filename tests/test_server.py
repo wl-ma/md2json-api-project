@@ -104,6 +104,79 @@ class ServerTests(unittest.TestCase):
                         headers={"Authorization": "Bearer test-token"},
                     )
                     self.assertEqual(usage.status_code, 200)
+                    listed = client.get(
+                        "/v1/source-conversions?source_type=markdown&status=succeeded&limit=10",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(listed.status_code, 200)
+                    self.assertTrue(any(item["job_id"] == job_id for item in listed.json()))
+            finally:
+                service.shutdown()
+
+    def test_annotation_documents_support_direct_json_editing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            service = JobService(
+                WorkerSettings(
+                    jobs_root=Path(temp) / "jobs",
+                    backend="local",
+                    model="unused",
+                )
+            )
+            app = create_app(service, api_token="test-token")
+            payload = {
+                "schema_version": "md2json.annotation.v1",
+                "source": {"filename": "chapter.json", "source_type": "markdown"},
+                "document": {"title": "", "language": "", "chapters": []},
+                "items": [
+                    {
+                        "id": "item_000001",
+                        "order_index": 1,
+                        "type": "def",
+                        "label": "Definition 1",
+                        "statement": "Definition 1. Value.",
+                        "proof": "",
+                        "dependencies": [],
+                        "source_refs": {"pages": [], "block_ids": [], "span_ids": [], "bbox_refs": []},
+                        "assets": {"image_path": "", "caption": "", "table_markdown": ""},
+                        "audit": {"modified": False, "issues": []},
+                    }
+                ],
+                "quality": {"error_count": 0, "warning_count": 0, "issues": []},
+            }
+            try:
+                with TestClient(app) as client:
+                    created = client.post(
+                        "/v1/annotation-documents",
+                        headers={"Authorization": "Bearer test-token"},
+                        files={"file": ("chapter.json", __import__("json").dumps(payload).encode("utf-8"), "application/json")},
+                    )
+                    self.assertEqual(created.status_code, 200)
+                    annotation_id = created.json()["annotation_id"]
+                    listed = client.get(
+                        "/v1/annotation-documents?limit=10",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(listed.status_code, 200)
+                    self.assertTrue(any(item["annotation_id"] == annotation_id for item in listed.json()))
+                    fetched = client.get(
+                        f"/v1/annotation-documents/{annotation_id}",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(fetched.status_code, 200)
+                    self.assertEqual(fetched.json()["items"][0]["statement"], "Definition 1. Value.")
+                    payload["items"][0]["statement"] = "Edited Definition 1. Value."
+                    updated = client.put(
+                        f"/v1/annotation-documents/{annotation_id}",
+                        headers={"Authorization": "Bearer test-token"},
+                        json=payload,
+                    )
+                    self.assertEqual(updated.status_code, 200)
+                    self.assertTrue(updated.json()["saved"])
+                    refetched = client.get(
+                        f"/v1/annotation-documents/{annotation_id}",
+                        headers={"Authorization": "Bearer test-token"},
+                    )
+                    self.assertEqual(refetched.json()["items"][0]["statement"], "Edited Definition 1. Value.")
             finally:
                 service.shutdown()
 

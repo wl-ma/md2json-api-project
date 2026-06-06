@@ -101,6 +101,7 @@ class JobStore:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    last_accessed_at TEXT,
                     input_name TEXT NOT NULL,
                     input_path TEXT NOT NULL,
                     output_dir TEXT NOT NULL,
@@ -115,6 +116,7 @@ class JobStore:
                 )
                 """
             )
+            self._ensure_column("jobs", "last_accessed_at", "TEXT")
 
     def create(self, *, job_id: str, input_name: str, input_path: Path, output_dir: Path, options: dict[str, str]) -> None:
         now = _now()
@@ -138,6 +140,14 @@ class JobStore:
         with self._lock:
             rows = self._connection.execute(
                 "SELECT * FROM jobs WHERE status IN ('queued', 'running') ORDER BY created_at"
+            ).fetchall()
+        return [_row_payload(row) for row in rows]
+
+    def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(int(limit), 500))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM jobs ORDER BY updated_at DESC LIMIT ?", (safe_limit,)
             ).fetchall()
         return [_row_payload(row) for row in rows]
 
@@ -191,9 +201,28 @@ class JobStore:
                 (_now(), str(result_path), str(quality_path), str(usage_path), job_id),
             )
 
+    def touch_access(self, job_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE jobs SET last_accessed_at = ?, updated_at = ? WHERE id = ?",
+                (_now(), _now(), job_id),
+            )
+
+    def delete(self, job_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
     def close(self) -> None:
         with self._lock:
             self._connection.close()
+
+    def _ensure_column(self, table: str, column: str, declaration: str) -> None:
+        existing = {
+            row[1]
+            for row in self._connection.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in existing:
+            self._connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
 
 
 class JobService:
@@ -252,10 +281,12 @@ class JobService:
 
     def result_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         return json.loads(Path(job["result_path"]).read_text(encoding="utf-8"))
 
     def quality_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         payload = json.loads(Path(job["quality_path"]).read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             payload["source_file"] = job["input_name"]
@@ -263,6 +294,7 @@ class JobService:
 
     def usage_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         return json.loads(Path(job["usage_path"]).read_text(encoding="utf-8"))
 
     def shutdown(self) -> None:

@@ -52,6 +52,7 @@ class FullJobStore:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    last_accessed_at TEXT,
                     input_name TEXT NOT NULL,
                     input_path TEXT NOT NULL,
                     doc2x_dir TEXT NOT NULL,
@@ -70,6 +71,7 @@ class FullJobStore:
                 )
                 """
             )
+            self._ensure_column("full_jobs", "last_accessed_at", "TEXT")
 
     def create(
         self,
@@ -111,6 +113,14 @@ class FullJobStore:
         with self._lock:
             rows = self._connection.execute(
                 "SELECT * FROM full_jobs WHERE status IN ('queued', 'running') ORDER BY created_at"
+            ).fetchall()
+        return [_row_payload(row) for row in rows]
+
+    def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(int(limit), 500))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM full_jobs ORDER BY updated_at DESC LIMIT ?", (safe_limit,)
             ).fetchall()
         return [_row_payload(row) for row in rows]
 
@@ -166,9 +176,28 @@ class FullJobStore:
                 (_now(), str(result_path), str(quality_path), str(usage_path), job_id),
             )
 
+    def touch_access(self, job_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE full_jobs SET last_accessed_at = ?, updated_at = ? WHERE id = ?",
+                (_now(), _now(), job_id),
+            )
+
+    def delete(self, job_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute("DELETE FROM full_jobs WHERE id = ?", (job_id,))
+
     def close(self) -> None:
         with self._lock:
             self._connection.close()
+
+    def _ensure_column(self, table: str, column: str, declaration: str) -> None:
+        existing = {
+            row[1]
+            for row in self._connection.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in existing:
+            self._connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
 
 
 class FullConversionService:
@@ -228,10 +257,12 @@ class FullConversionService:
 
     def result_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         return json.loads(Path(job["result_path"]).read_text(encoding="utf-8"))
 
     def quality_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         payload = json.loads(Path(job["quality_path"]).read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             payload["source_file"] = job["input_name"]
@@ -239,6 +270,7 @@ class FullConversionService:
 
     def usage_payload(self, job_id: str) -> Any:
         job = self._successful(job_id)
+        self.store.touch_access(job_id)
         return json.loads(Path(job["usage_path"]).read_text(encoding="utf-8"))
 
     def shutdown(self) -> None:

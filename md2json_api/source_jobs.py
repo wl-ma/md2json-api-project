@@ -132,6 +132,38 @@ class SourceConversionService:
         except FullJobNotReadyError as exc:
             raise SourceJobNotReadyError(str(exc)) from exc
 
+    def list_jobs(
+        self,
+        *,
+        source_type: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(int(limit), 500))
+        results: list[dict[str, Any]] = []
+
+        if source_type in {None, "markdown"}:
+            for job in self.markdown_jobs.store.list(limit=safe_limit):
+                payload = self._source_status(job, source_type="markdown", prefix=MARKDOWN_PREFIX)
+                if status is None or payload["status"] == status:
+                    results.append(payload)
+
+        if source_type in {None, "pdf", "image"}:
+            for job in self.full_jobs.store.list(limit=safe_limit):
+                inferred_source_type = _infer_full_source_type(job)
+                if source_type is not None and inferred_source_type != source_type:
+                    continue
+                payload = self._source_status(
+                    job,
+                    source_type=inferred_source_type,
+                    prefix=IMAGE_PREFIX if inferred_source_type == "image" else PDF_PREFIX,
+                )
+                if status is None or payload["status"] == status:
+                    results.append(payload)
+
+        results.sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+        return results[:safe_limit]
+
     def _decode_id(self, source_job_id: str) -> tuple[str, str]:
         if source_job_id.startswith(MARKDOWN_PREFIX):
             return "markdown", source_job_id[len(MARKDOWN_PREFIX) :]
@@ -206,3 +238,10 @@ class SourceJobNotFoundError(KeyError):
 
 class SourceJobNotReadyError(RuntimeError):
     pass
+
+
+def _infer_full_source_type(job: dict[str, Any]) -> str:
+    suffix = Path(str(job.get("input_name") or "")).suffix.lower()
+    if suffix in IMAGE_EXTENSIONS:
+        return "image"
+    return "pdf"
