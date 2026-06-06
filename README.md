@@ -208,6 +208,11 @@ MD2JSON_MODEL=your_azure_deployment
 MD2JSON_JOBS_ROOT=/srv/md2json/jobs
 MD2JSON_WORKERS=1
 MD2JSON_MAX_UPLOAD_BYTES=10485760
+MD2JSON_LLM_TIMEOUT=1800
+MD2JSON_REASONING_EFFORT=medium
+MD2JSON_SERVER_PROMPT_PROFILE=textbook
+MD2JSON_SERVER_STRUCTURE_MODE=llm
+MD2JSON_SERVER_AUDIT_MODE=llm
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 AZURE_OPENAI_API_VERSION=2024-10-21
 AZURE_OPENAI_API_KEY=your_api_key_here
@@ -215,6 +220,14 @@ AZURE_OPENAI_API_KEY=your_api_key_here
 
 使用 OpenAI backend 时，配置 `MD2JSON_SERVER_BACKEND=openai` 和 `OPENAI_API_KEY`；不要在客户端请求、
 命令行参数或日志中发送 key。`MD2JSON_WORKERS=1` 是当前文件型输出和恢复机制下最稳妥的部署设置。
+
+服务端还可通过以下环境变量强制统一转换质量策略；这些值由 `/etc/md2json/md2json.env` 注入，客户端请求中的同名表单参数不会覆盖它们：
+
+- `MD2JSON_LLM_TIMEOUT`
+- `MD2JSON_REASONING_EFFORT`
+- `MD2JSON_SERVER_PROMPT_PROFILE`
+- `MD2JSON_SERVER_STRUCTURE_MODE`
+- `MD2JSON_SERVER_AUDIT_MODE`
 
 如果需要开启原始 PDF 到 Markdown/JSON 的 Doc2X 前置阶段，额外配置：
 
@@ -250,17 +263,11 @@ API 路径，不要将 `/srv/md2json/jobs` 映射为静态目录。
 ```bash
 curl -X POST https://api.example.com/v1/source-conversions \
   -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
-  -F "file=@/path/to/input.md;type=text/markdown" \
-  -F "prompt_profile=auto" \
-  -F "structure_mode=auto" \
-  -F "audit_mode=auto"
+  -F "file=@/path/to/input.md;type=text/markdown"
 ```
 
-可由客户端选择的参数仅为：
-
-- `prompt_profile`：`auto`、`textbook`、`paper`、`chinese_math`
-- `structure_mode`：`auto`、`llm`、`hard`
-- `audit_mode`：`auto`、`llm`、`off`
+客户端不能选择 provider、模型、reasoning、prompt profile、structure mode 或 audit mode；这些都由服务端通过环境变量统一控制。
+Markdown-only 请求只需上传文件并携带 bearer token。
 
 接口列表：
 
@@ -282,10 +289,22 @@ PDF 任务示例：
 ```bash
 curl -X POST https://api.example.com/v1/source-conversions \
   -H "Authorization: Bearer ${MD2JSON_CLIENT_TOKEN}" \
-  -F "file=@/path/to/input.pdf;type=application/pdf" \
-  -F "doc2x_model=v3-2026" \
-  -F "formula_mode=normal" \
-  -F "formula_level=0"
+  -F "file=@/path/to/input.pdf;type=application/pdf"
+```
+
+PDF / image 请求同样由服务端统一控制 Doc2X 与 md2json 策略。若部署者需要固定高质量模式，推荐在
+`/etc/md2json/md2json.env` 中设置：
+
+```text
+MD2JSON_MODEL=gpt-5.4
+MD2JSON_LLM_TIMEOUT=1800
+MD2JSON_REASONING_EFFORT=medium
+MD2JSON_SERVER_PROMPT_PROFILE=textbook
+MD2JSON_SERVER_STRUCTURE_MODE=llm
+MD2JSON_SERVER_AUDIT_MODE=llm
+DOC2X_MODEL=v3-2026
+DOC2X_TIMEOUT=600
+DOC2X_POLL_INTERVAL=2
 ```
 
 保存人工标注结果：

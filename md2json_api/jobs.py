@@ -31,6 +31,10 @@ class WorkerSettings:
     azure_api_version: str = "2024-10-21"
     max_output_tokens: int | None = None
     llm_timeout: float = 600
+    reasoning_effort: str | None = None
+    prompt_profile: str = "auto"
+    structure_mode: str = "auto"
+    audit_mode: str = "auto"
     max_workers: int = 1
 
     @classmethod
@@ -46,6 +50,10 @@ class WorkerSettings:
             azure_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
             max_output_tokens=int(max_output) if max_output else None,
             llm_timeout=float(os.environ.get("MD2JSON_LLM_TIMEOUT", "600")),
+            reasoning_effort=(os.environ.get("MD2JSON_REASONING_EFFORT") or "").strip().lower() or None,
+            prompt_profile=os.environ.get("MD2JSON_SERVER_PROMPT_PROFILE", "auto"),
+            structure_mode=os.environ.get("MD2JSON_SERVER_STRUCTURE_MODE", "auto"),
+            audit_mode=os.environ.get("MD2JSON_SERVER_AUDIT_MODE", "auto"),
             max_workers=max(1, int(os.environ.get("MD2JSON_WORKERS", "1"))),
         )
 
@@ -71,10 +79,11 @@ class WorkerSettings:
             azure_api_version=self.azure_api_version,
             max_output_tokens=self.max_output_tokens,
             llm_timeout=self.llm_timeout,
-            prompt_profile=options["prompt_profile"],
-            structure_mode=options["structure_mode"],
-            audit_mode=options["audit_mode"],
+            prompt_profile=self.prompt_profile,
+            structure_mode=self.structure_mode,
+            audit_mode=self.audit_mode,
             resume=resume,
+            reasoning_effort=self.reasoning_effort,
         )
 
 
