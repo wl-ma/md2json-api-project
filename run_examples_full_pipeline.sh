@@ -11,6 +11,7 @@ DOC2X_RESULTS_DIR="${OUTPUT_ROOT}/doc2x_results"
 MD2JSON_RESULTS_DIR="${OUTPUT_ROOT}/md2json_results"
 LOGS_DIR="${OUTPUT_ROOT}/logs"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_PYTHON}"
+ENV_FILE="${MD2JSON_ENV_FILE:-/etc/md2json/md2json.env}"
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
 MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.5}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://llmmelon.cloud/v1}"
@@ -35,6 +36,12 @@ BOOK_DIRS=(
   "Optimization Theory and Methods"
 )
 
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
 
 usage() {
   cat <<EOF
@@ -58,7 +65,8 @@ Resume/skip behavior:
   - Set FORCE_RERUN=true to ignore existing outputs and rerun from scratch.
 
 Configuration:
-  - This script uses its built-in high-quality defaults.
+  - This script uses its built-in defaults first.
+  - If ${ENV_FILE} exists, it is sourced to fill in parameters not configured elsewhere.
   - Override any setting by exporting the corresponding environment variable before running.
 
 Required environment:
