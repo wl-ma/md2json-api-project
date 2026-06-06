@@ -76,7 +76,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 浏览器 -> 前端/业务后端或网关 -> md2json
 ```
 
-如果浏览器直接请求 md2json，需要前端团队自行确认 CORS、HTTPS/mixed content 和 token 暴露风险。md2json 当前交付公网 API 和 token；浏览器跨域、代理和域名网关由前端团队按其部署环境处理。
+如果浏览器直接请求 md2json，需要前端团队自行确认 CORS、HTTPS/mixed content 和 token 暴露风险。生产环境更推荐通过前端业务后端或网关代理 md2json，请勿将服务 token 直接暴露给不受控浏览器环境；浏览器跨域、代理和域名网关由前端团队按其部署环境处理。
 
 ## 4. UI 功能与 API 对应关系
 
@@ -87,8 +87,8 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 | UI 功能 | 接口 | 方法 | 说明 |
 |---|---|---|---|
 | 选择文件并点击“开始转换” | `/v1/source-conversions` | `POST` | 创建异步转换任务，返回 `job_id` |
-| 设置转换选项 | `/v1/source-conversions` | `POST` | 在 multipart form 中传 `prompt_profile`、`structure_mode`、`audit_mode` 等 |
 | 展示文件类型支持说明 | 无单独接口 | - | 由前端按本手册静态展示 |
+| 展示当前策略由服务端统一控制 | 无单独接口 | - | 前端无需提交任何转换策略或 Doc2X 参数 |
 
 前端动作建议：
 
@@ -227,25 +227,15 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |---|---:|---:|---|---|
 | `file` | file | 是 | 无 | `.md`、`.pdf`、`.jpg`、`.jpeg`、`.png` |
-| `prompt_profile` | string | 否 | `auto` | `auto`、`textbook`、`paper`、`chinese_math` |
-| `structure_mode` | string | 否 | `auto` | `auto`、`llm`、`hard` |
-| `audit_mode` | string | 否 | `auto` | `auto`、`llm`、`off` |
-| `doc2x_model` | string | 否 | `v3-2026` | PDF 路径使用 |
-| `formula_mode` | string | 否 | `normal` | PDF 路径使用，`normal` 或 `dollar` |
-| `formula_level` | string | 否 | `0` | PDF 路径使用，`0`、`1`、`2` |
-| `merge_cross_page_forms` | boolean | 否 | `false` | PDF 路径使用，表单字段传 `true` 或 `false` |
 
-图片路径不向前端暴露额外 Doc2X 参数。服务端按 Doc2X 官方图片 OCR 接口要求，以图片二进制请求体调用 Doc2X。
+转换策略、模型、reasoning、Doc2X 参数均由服务端统一控制，前端不提交这些字段。
 
 示例：
 
 ```bash
 curl -X POST "$MD2JSON_BASE_URL/v1/source-conversions" \
   -H "Authorization: Bearer <MD2JSON_API_TOKEN>" \
-  -F "file=@chapter.md;type=text/markdown" \
-  -F "prompt_profile=auto" \
-  -F "structure_mode=auto" \
-  -F "audit_mode=auto"
+  -F "file=@chapter.md;type=text/markdown"
 ```
 
 成功响应：`202 Accepted`
@@ -621,9 +611,6 @@ const AUTHORIZATION = "Bearer <MD2JSON_API_TOKEN>";
 export async function createSourceConversion(file) {
   const form = new FormData();
   form.append("file", file);
-  form.append("prompt_profile", "auto");
-  form.append("structure_mode", "auto");
-  form.append("audit_mode", "auto");
 
   const response = await fetch(`${BASE_URL}/v1/source-conversions`, {
     method: "POST",

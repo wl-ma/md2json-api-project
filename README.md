@@ -221,7 +221,7 @@ AZURE_OPENAI_API_KEY=your_api_key_here
 使用 OpenAI backend 时，配置 `MD2JSON_SERVER_BACKEND=openai` 和 `OPENAI_API_KEY`；不要在客户端请求、
 命令行参数或日志中发送 key。`MD2JSON_WORKERS=1` 是当前文件型输出和恢复机制下最稳妥的部署设置。
 
-服务端还可通过以下环境变量强制统一转换质量策略；这些值由 `/etc/md2json/md2json.env` 注入，客户端请求中的同名表单参数不会覆盖它们：
+服务端还可通过以下环境变量强制统一转换质量策略；这些值由 `/etc/md2json/md2json.env` 注入，客户端接口不再接受这些参数，转换策略完全由服务端环境变量控制：
 
 - `MD2JSON_LLM_TIMEOUT`
 - `MD2JSON_REASONING_EFFORT`

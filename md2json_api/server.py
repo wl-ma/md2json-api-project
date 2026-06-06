@@ -112,13 +112,6 @@ def create_app(
     @app.post("/v1/source-conversions", status_code=status.HTTP_202_ACCEPTED, dependencies=[protected])
     async def create_source_conversion(
         file: Annotated[UploadFile, File(description="Markdown, PDF, or image source file.")],
-        prompt_profile: Annotated[str, Form()] = "auto",
-        structure_mode: Annotated[str, Form()] = "auto",
-        audit_mode: Annotated[str, Form()] = "auto",
-        doc2x_model: Annotated[str, Form()] = "v3-2026",
-        formula_mode: Annotated[str, Form()] = "normal",
-        formula_level: Annotated[str, Form()] = "0",
-        merge_cross_page_forms: Annotated[bool, Form()] = False,
     ) -> dict:
         filename = file.filename or "input"
         lower = filename.lower()
@@ -142,15 +135,7 @@ def create_app(
             return source_jobs.create_job(
                 filename=filename,
                 content=content,
-                options={
-                    "prompt_profile": prompt_profile,
-                    "structure_mode": structure_mode,
-                    "audit_mode": audit_mode,
-                    "doc2x_model": doc2x_model,
-                    "formula_mode": formula_mode,
-                    "formula_level": formula_level,
-                    "merge_cross_page_forms": merge_cross_page_forms,
-                },
+                options={},
             )
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
