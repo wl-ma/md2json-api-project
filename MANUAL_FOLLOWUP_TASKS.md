@@ -1,3 +1,13 @@
+
+## 重启 md2json-mdonly-folder 服务与定时器
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart md2json-mdonly-folder.service
+sudo systemctl restart md2json-mdonly-folder.timer
+sudo systemctl status md2json-mdonly-folder.service --no-pager
+sudo systemctl status md2json-mdonly-folder.timer --no-pager
+```
 # md2json-api-project 手动后续操作说明
 
 本文档记录当前检查结论，以及你接下来需要手动完成的操作。

@@ -1,0 +1,97 @@
+# 建议的 `/etc/md2json/md2json.env` 完整内容（单文件分组方案）
+
+下面内容采用 **一个 env 文件、按服务用途分组** 的方案整理，**不修改任何现有参数值**，仅调整顺序、统一命名并补充分组注释。
+
+```ini
+# =========================
+# Shared provider / base settings
+# =========================
+OPENAI_BASE_URL=https://llmmelon.cloud/v1
+OPENAI_API_KEY=sk-XMJR3RRsHdRLhiPnT3XTPhReBHzxjZ0E1a2FLn0x2K8je9SJ
+
+DOC2X_API_KEY=sk-g8713np08nuc0hjybuuqi8qr6jhqnx1r
+DOC2X_BASE_URL=https://v2.doc2x.noedgeai.com
+
+# =========================
+# md2json-api.service
+# =========================
+MD2JSON_API_TOKEN=42523caf02a9bcc56ef0b04094c6dfec46017c0b14f037fa0a5b7a6c19b13563
+MD2JSON_SERVER_BACKEND=openai
+MD2JSON_MODEL=gpt-5.5
+MD2JSON_JOBS_ROOT=/srv/md2json/jobs
+MD2JSON_WORKERS=1
+MD2JSON_MAX_UPLOAD_BYTES=10485760
+MD2JSON_LLM_TIMEOUT=600
+MD2JSON_REASONING_EFFORT=medium
+MD2JSON_SERVER_PROMPT_PROFILE=auto
+MD2JSON_SERVER_STRUCTURE_MODE=llm
+MD2JSON_SERVER_AUDIT_MODE=llm
+MD2JSON_RETENTION_DAYS=7
+FULL_CONVERSION_WORKERS=1
+
+# =========================
+# md2json-mdonly-folder.service
+# =========================
+MD2JSON_MDONLY_BACKEND=openai
+MD2JSON_MDONLY_MODEL=gpt-5.5
+MD2JSON_MDONLY_LLM_TIMEOUT=600
+MD2JSON_MDONLY_REASONING_EFFORT=medium
+MD2JSON_MDONLY_PROMPT_PROFILE=auto
+MD2JSON_MDONLY_STRUCTURE_MODE=llm
+MD2JSON_MDONLY_AUDIT_MODE=llm
+MD2JSON_DOC2X_INPUT_ROOT=/root/workspace/data/book_prepare/ebooks-doc2x
+MD2JSON_MDONLY_WORK_ROOT=/root/workspace/data/book_prepare/ebooks-md2json-work
+MD2JSON_MDONLY_OUTPUT_ROOT=/root/workspace/data/book_prepare/ebooks-md2json
+MD2JSON_MDONLY_STABLE_SECONDS=30
+MD2JSON_MDONLY_MAX_FILES=1
+MD2JSON_MDONLY_MAX_FAILURES=3
+MD2JSON_MDONLY_RETRY_COOLDOWN_SECONDS=3600
+
+# =========================
+# md2json-doc2x-folder.service
+# =========================
+DOC2X_MODEL=v3-2026
+DOC2X_TIMEOUT=600
+DOC2X_POLL_INTERVAL=2
+DOC2X_MAX_UPLOAD_BYTES=300000000
+DOC2X_MAX_PAGES=200
+DOC2X_SPLIT_MAX_PAGES=100
+DOC2X_WORKERS=1
+DOC2X_WATCH_MAX_FAILURES=3
+DOC2X_RETRY_COOLDOWN_SECONDS=3600
+DOC2X_WATCH_INPUT_DIR=/root/workspace/data/book_prepare/ebooks
+DOC2X_WATCH_OUTPUT_DIR=/root/workspace/data/book_prepare/ebooks-doc2x
+DOC2X_WATCH_STABLE_SECONDS=120
+DOC2X_WATCH_MAX_FILES=1
+DOC2X_WATCH_RECURSIVE=true
+DOC2X_FORMULA_MODE=normal
+DOC2X_FORMULA_LEVEL=0
+DOC2X_MERGE_CROSS_PAGE_FORMS=false
+
+# =========================
+# md2json-cleanup.service
+# =========================
+MD2JSON_CACHE_GC_ENABLED=true
+MD2JSON_CACHE_DELETE_FAILED_AFTER_DAYS=7
+MD2JSON_CACHE_DELETE_SUCCEEDED_AFTER_DAYS=14
+MD2JSON_CACHE_DELETE_ANNOTATED_AFTER_DAYS=180
+MD2JSON_CACHE_DELETE_ANNOTATION_DOCUMENTS_AFTER_DAYS=180
+MD2JSON_CACHE_KEEP_ANNOTATION_DOCUMENTS=true
+MD2JSON_CACHE_DELETE_DEBUG_AFTER_DAYS=1
+MD2JSON_CACHE_GC_BATCH_LIMIT=500
+```
+
+## 说明
+
+- 本文件中的值全部来自当前服务器已有配置，**未修改任何值**。
+- `md2json-api.service` 继续使用 `MD2JSON_SERVER_*` 与现有 `MD2JSON_MODEL` / `MD2JSON_LLM_TIMEOUT` /
+  `MD2JSON_REASONING_EFFORT` 这组变量。
+- `md2json-mdonly-folder.service` 现在使用独立的：
+  - `MD2JSON_MDONLY_BACKEND`
+  - `MD2JSON_MDONLY_MODEL`
+  - `MD2JSON_MDONLY_LLM_TIMEOUT`
+  - `MD2JSON_MDONLY_REASONING_EFFORT`
+  - `MD2JSON_MDONLY_PROMPT_PROFILE`
+  - `MD2JSON_MDONLY_STRUCTURE_MODE`
+  - `MD2JSON_MDONLY_AUDIT_MODE`
+- 该模板的目标是：在**不改值**的前提下，让一个 env 文件的结构清楚，且让两个 md2json service 的参数命名完全分离。

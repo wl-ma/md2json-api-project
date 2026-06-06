@@ -11,7 +11,6 @@ DOC2X_RESULTS_DIR="${OUTPUT_ROOT}/doc2x_results"
 MD2JSON_RESULTS_DIR="${OUTPUT_ROOT}/md2json_results"
 LOGS_DIR="${OUTPUT_ROOT}/logs"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_PYTHON}"
-ENV_FILE="${MD2JSON_ENV_FILE:-/etc/md2json/md2json.env}"
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
 MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.4}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
@@ -33,28 +32,6 @@ BOOK_DIRS=(
   "Optimization Theory and Methods"
 )
 
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-fi
-
-MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
-MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.4}"
-OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
-AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
-AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-10-21}"
-MD2JSON_LLM_TIMEOUT="${MD2JSON_LLM_TIMEOUT:-1800}"
-MD2JSON_REASONING_EFFORT="${MD2JSON_REASONING_EFFORT:-medium}"
-DOC2X_MODEL="${DOC2X_MODEL:-v3-2026}"
-FORMULA_MODE="${FORMULA_MODE:-normal}"
-FORMULA_LEVEL="${FORMULA_LEVEL:-0}"
-MERGE_CROSS_PAGE_FORMS="${MERGE_CROSS_PAGE_FORMS:-false}"
-PROMPT_PROFILE="${PROMPT_PROFILE:-textbook}"
-STRUCTURE_MODE="${STRUCTURE_MODE:-llm}"
-AUDIT_MODE="${AUDIT_MODE:-llm}"
-FORCE_RERUN="${FORCE_RERUN:-false}"
 
 usage() {
   cat <<EOF
@@ -77,11 +54,11 @@ Resume/skip behavior:
   - If md2json_output contains resumable artifacts, md2json runs with resume=true.
   - Set FORCE_RERUN=true to ignore existing outputs and rerun from scratch.
 
-Environment loading:
-  - This script automatically sources: ${ENV_FILE}
-  - Override with MD2JSON_ENV_FILE=/path/to/file
+Configuration:
+  - This script uses its built-in high-quality defaults.
+  - Override any setting by exporting the corresponding environment variable before running.
 
-Required environment after loading:
+Required environment:
   DOC2X_API_KEY
   For MD2JSON_BACKEND=openai: OPENAI_API_KEY
   For MD2JSON_BACKEND=azure:  AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT

@@ -72,20 +72,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--backend",
         choices=["openai", "azure", "mock", "local"],
-        default=os.environ.get("MD2JSON_SERVER_BACKEND", "openai"),
+        default=os.environ.get("MD2JSON_MDONLY_BACKEND", "openai"),
     )
-    parser.add_argument("--model", default=os.environ.get("MD2JSON_MODEL", "gpt-5.5"))
-    parser.add_argument("--prompt-profile", default=os.environ.get("MD2JSON_PROMPT_PROFILE", "auto"))
-    parser.add_argument("--structure-mode", default=os.environ.get("MD2JSON_STRUCTURE_MODE", "auto"))
-    parser.add_argument("--audit-mode", default=os.environ.get("MD2JSON_AUDIT_MODE", "auto"))
+    parser.add_argument(
+        "--model",
+        default=os.environ.get("MD2JSON_MDONLY_MODEL", "gpt-5.5"),
+    )
+    parser.add_argument(
+        "--prompt-profile",
+        default=os.environ.get("MD2JSON_MDONLY_PROMPT_PROFILE", "auto"),
+    )
+    parser.add_argument(
+        "--structure-mode",
+        default=os.environ.get("MD2JSON_MDONLY_STRUCTURE_MODE", "auto"),
+    )
+    parser.add_argument(
+        "--audit-mode",
+        default=os.environ.get("MD2JSON_MDONLY_AUDIT_MODE", "auto"),
+    )
     parser.add_argument(
         "--llm-timeout",
         type=float,
-        default=float(os.environ.get("MD2JSON_LLM_TIMEOUT", "600")),
+        default=float(os.environ.get("MD2JSON_MDONLY_LLM_TIMEOUT", "600")),
     )
     parser.add_argument(
         "--reasoning-effort",
-        default=os.environ.get("MD2JSON_REASONING_EFFORT"),
+        default=os.environ.get("MD2JSON_MDONLY_REASONING_EFFORT"),
     )
     return parser
 
