@@ -13,18 +13,19 @@ LOGS_DIR="${OUTPUT_ROOT}/logs"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_PYTHON}"
 ENV_FILE="${MD2JSON_ENV_FILE:-/etc/md2json/md2json.env}"
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
-MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.5}"
+MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.4}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
 AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
 AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-10-21}"
-MD2JSON_LLM_TIMEOUT="${MD2JSON_LLM_TIMEOUT:-600}"
+MD2JSON_LLM_TIMEOUT="${MD2JSON_LLM_TIMEOUT:-1800}"
+MD2JSON_REASONING_EFFORT="${MD2JSON_REASONING_EFFORT:-medium}"
 DOC2X_MODEL="${DOC2X_MODEL:-v3-2026}"
 FORMULA_MODE="${FORMULA_MODE:-normal}"
 FORMULA_LEVEL="${FORMULA_LEVEL:-0}"
 MERGE_CROSS_PAGE_FORMS="${MERGE_CROSS_PAGE_FORMS:-false}"
-PROMPT_PROFILE="${PROMPT_PROFILE:-auto}"
-STRUCTURE_MODE="${STRUCTURE_MODE:-auto}"
-AUDIT_MODE="${AUDIT_MODE:-auto}"
+PROMPT_PROFILE="${PROMPT_PROFILE:-textbook}"
+STRUCTURE_MODE="${STRUCTURE_MODE:-llm}"
+AUDIT_MODE="${AUDIT_MODE:-llm}"
 FORCE_RERUN="${FORCE_RERUN:-false}"
 
 BOOK_DIRS=(
@@ -40,18 +41,19 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 MD2JSON_BACKEND="${MD2JSON_BACKEND:-openai}"
-MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.5}"
+MD2JSON_MODEL="${MD2JSON_MODEL:-gpt-5.4}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
 AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-}"
 AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-10-21}"
-MD2JSON_LLM_TIMEOUT="${MD2JSON_LLM_TIMEOUT:-600}"
+MD2JSON_LLM_TIMEOUT="${MD2JSON_LLM_TIMEOUT:-1800}"
+MD2JSON_REASONING_EFFORT="${MD2JSON_REASONING_EFFORT:-medium}"
 DOC2X_MODEL="${DOC2X_MODEL:-v3-2026}"
 FORMULA_MODE="${FORMULA_MODE:-normal}"
 FORMULA_LEVEL="${FORMULA_LEVEL:-0}"
 MERGE_CROSS_PAGE_FORMS="${MERGE_CROSS_PAGE_FORMS:-false}"
-PROMPT_PROFILE="${PROMPT_PROFILE:-auto}"
-STRUCTURE_MODE="${STRUCTURE_MODE:-auto}"
-AUDIT_MODE="${AUDIT_MODE:-auto}"
+PROMPT_PROFILE="${PROMPT_PROFILE:-textbook}"
+STRUCTURE_MODE="${STRUCTURE_MODE:-llm}"
+AUDIT_MODE="${AUDIT_MODE:-llm}"
 FORCE_RERUN="${FORCE_RERUN:-false}"
 
 usage() {
@@ -92,6 +94,7 @@ Optional environment:
   AZURE_OPENAI_ENDPOINT
   AZURE_OPENAI_API_VERSION
   MD2JSON_LLM_TIMEOUT
+  MD2JSON_REASONING_EFFORT
   DOC2X_MODEL
   FORMULA_MODE
   FORMULA_LEVEL
@@ -166,6 +169,7 @@ run_one_pdf() {
   MD2JSON_BACKEND="$MD2JSON_BACKEND" \
   MD2JSON_MODEL="$MD2JSON_MODEL" \
   MD2JSON_LLM_TIMEOUT="$MD2JSON_LLM_TIMEOUT" \
+  MD2JSON_REASONING_EFFORT="$MD2JSON_REASONING_EFFORT" \
   DOC2X_API_KEY="$DOC2X_API_KEY" \
   DOC2X_BASE_URL="${DOC2X_BASE_URL:-https://v2.doc2x.noedgeai.com}" \
   DOC2X_TIMEOUT="${DOC2X_TIMEOUT:-600}" \
@@ -221,13 +225,14 @@ usage_export_path = md2json_artifact_dir / "usage.json"
 result_export_path = md2json_artifact_dir / "result.json"
 
 backend = os.environ.get("MD2JSON_BACKEND", "openai")
-model = os.environ.get("MD2JSON_MODEL", "gpt-5.5")
+model = os.environ.get("MD2JSON_MODEL", "gpt-5.4")
 openai_api_key = os.environ.get("OPENAI_API_KEY") or None
 openai_base_url = os.environ.get("OPENAI_BASE_URL") or None
 azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT") or None
 azure_api_key = os.environ.get("AZURE_OPENAI_API_KEY") or None
 azure_api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
-llm_timeout = float(os.environ.get("MD2JSON_LLM_TIMEOUT", "600"))
+llm_timeout = float(os.environ.get("MD2JSON_LLM_TIMEOUT", "1800"))
+reasoning_effort = os.environ.get("MD2JSON_REASONING_EFFORT") or None
 force_rerun = os.environ.get("FORCE_RERUN", "false").lower() == "true"
 
 doc2x_options = {
@@ -390,6 +395,7 @@ try:
             azure_api_version=azure_api_version,
             llm_timeout=llm_timeout,
             prompt_profile=md2json_options["prompt_profile"],
+            reasoning_effort=reasoning_effort,
             structure_mode=md2json_options["structure_mode"],
             audit_mode=md2json_options["audit_mode"],
             resume=resume_md2json,
