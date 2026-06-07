@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .annotation_docs import AnnotationDocumentNotFoundError, AnnotationDocumentService
 from .doc2x_jobs import (
@@ -207,6 +207,16 @@ def create_app(
     def source_conversion_usage(job_id: str) -> JSONResponse:
         try:
             return JSONResponse(source_jobs.usage_payload(job_id))
+        except SourceJobNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
+        except SourceJobNotReadyError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Job is not complete: {exc}.") from exc
+
+    @app.get("/v1/source-conversions/{job_id}/markdown", dependencies=[protected])
+    def source_conversion_markdown(job_id: str) -> Response:
+        try:
+            markdown = source_jobs.markdown_payload(job_id)
+            return Response(content=markdown, media_type="text/markdown; charset=utf-8")
         except SourceJobNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.") from exc
         except SourceJobNotReadyError as exc:

@@ -117,6 +117,7 @@ class JobStore:
                 """
             )
             self._ensure_column("jobs", "last_accessed_at", "TEXT")
+            self._ensure_column("jobs", "usage_path", "TEXT")
 
     def create(self, *, job_id: str, input_name: str, input_path: Path, output_dir: Path, options: dict[str, str]) -> None:
         now = _now()

@@ -26,6 +26,7 @@
 |---|---|---|
 | 多格式上传并转换为标注 JSON | `/v1/source-conversions` | `md2json.annotation.v1` |
 | 查询原始文档解析任务列表 | `/v1/source-conversions` | 任务状态列表 |
+| 下载实际送入 md2json 的 Markdown | `/v1/source-conversions/{job_id}/markdown` | `text/markdown` |
 | 保存人工标注修改结果 | `/v1/source-conversions/{job_id}/annotation` | `md2json.annotation.v1` |
 | 读取质量摘要 | `/v1/source-conversions/{job_id}/quality` | `quality` 对象 |
 | 读取脱敏用量统计 | `/v1/source-conversions/{job_id}/usage` | usage 对象 |
@@ -423,7 +424,33 @@ assumption, claim, conjecture, problem, question, notation,
 heading, paragraph, figure, table, unknown
 ```
 
-### 7.4 保存标注结果
+### 7.4 下载 markdown
+
+```http
+GET ${MD2JSON_BASE_URL}/v1/source-conversions/{job_id}/markdown
+Authorization: Bearer <MD2JSON_API_TOKEN>
+```
+
+对应 UI：
+
+- 历史记录页“下载 Markdown”按钮
+- 结果详情页 markdown 下载入口
+
+只有 `status=succeeded` 后才能调用。任务未完成时返回 `409`。
+
+成功响应：
+
+- `200 OK`
+- `Content-Type: text/markdown; charset=utf-8`
+
+返回内容语义：
+
+- 对 markdown 上传：返回原始上传并实际送入 md2json 的 markdown 文本
+- 对 PDF / 图片上传：返回 Doc2X / OCR 生成并实际送入 md2json 的 markdown 文本
+
+该接口返回的是**实际用于 md2json 抽取的 markdown**，不是 trace、内部切片或调试信息。
+
+### 7.5 保存标注结果
 
 前端完成人工编辑后，提交完整的 `md2json.annotation.v1` 文档。
 
@@ -506,7 +533,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 }
 ```
 
-### 7.5 获取已保存标注结果
+### 7.6 获取已保存标注结果
 
 ```http
 GET ${MD2JSON_BASE_URL}/v1/source-conversions/{job_id}/annotation
@@ -520,7 +547,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 
 返回最近一次保存的完整 `md2json.annotation.v1` 文档。如果尚未保存过人工标注结果，返回 `404`。
 
-### 7.6 获取质量摘要
+### 7.7 获取质量摘要
 
 ```http
 GET ${MD2JSON_BASE_URL}/v1/source-conversions/{job_id}/quality
@@ -555,7 +582,7 @@ Authorization: Bearer <MD2JSON_API_TOKEN>
 - `items[].audit.issues` 是单个 item 的问题。
 - `quality.issues` 是整篇文档的问题列表，尽量通过 `item_id` 指向具体 item。
 
-### 7.7 获取用量统计
+### 7.8 获取用量统计
 
 ```http
 GET ${MD2JSON_BASE_URL}/v1/source-conversions/{job_id}/usage

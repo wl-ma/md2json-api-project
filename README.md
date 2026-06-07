@@ -309,12 +309,13 @@ Markdown-only 请求只需上传文件并携带 bearer token。
 | `POST` | `/v1/source-conversions` | 上传 `.md`、`.pdf`、`.jpg`、`.jpeg`、`.png`，返回 `job_id` 和初始任务状态 |
 | `GET` | `/v1/source-conversions/{job_id}` | 状态、阶段、Doc2X/OCR 进度和 section 进度 |
 | `GET` | `/v1/source-conversions/{job_id}/result` | 成功任务的 `md2json.annotation.v1` 结果；若已保存人工标注，返回保存版本 |
+| `GET` | `/v1/source-conversions/{job_id}/markdown` | 返回该任务实际送入 md2json 抽取的 markdown 文本，`Content-Type: text/markdown` |
 | `PUT` | `/v1/source-conversions/{job_id}/annotation` | 保存前端人工编辑后的完整 `md2json.annotation.v1` 文档 |
 | `GET` | `/v1/source-conversions/{job_id}/annotation` | 获取已保存的人工标注结果 |
 | `GET` | `/v1/source-conversions/{job_id}/quality` | 当前 annotation 结果中的质量摘要 |
 | `GET` | `/v1/source-conversions/{job_id}/usage` | 脱敏用量统计 |
 
-除 `/healthz` 外的接口都需要 bearer token。API 不提供 trace、源 Markdown 切片、内部错误栈或服务器路径。
+除 `/healthz` 外的接口都需要 bearer token。API 不提供 trace、内部错误栈或服务器路径；但会提供任务实际送入 md2json 抽取的 markdown 下载接口。
 
 PDF 任务示例：
 

@@ -132,6 +132,32 @@ class SourceConversionService:
         except FullJobNotReadyError as exc:
             raise SourceJobNotReadyError(str(exc)) from exc
 
+    def markdown_payload(self, source_job_id: str) -> str:
+        source_type, backend_id = self._decode_id(source_job_id)
+        try:
+            if source_type == "markdown":
+                job = self.markdown_jobs.store.get(backend_id)
+                if job is None:
+                    raise SourceJobNotFoundError(source_job_id)
+                if job["status"] != "succeeded":
+                    raise SourceJobNotReadyError(str(job["status"]))
+                self.markdown_jobs.store.touch_access(backend_id)
+                return Path(job["input_path"]).read_text(encoding="utf-8")
+            job = self.full_jobs.store.get(backend_id)
+            if job is None:
+                raise SourceJobNotFoundError(source_job_id)
+            if job["status"] != "succeeded":
+                raise SourceJobNotReadyError(str(job["status"]))
+            self.full_jobs.store.touch_access(backend_id)
+            markdown_path = job.get("markdown_path")
+            if not markdown_path:
+                raise SourceJobNotReadyError("markdown_unavailable")
+            return Path(markdown_path).read_text(encoding="utf-8")
+        except JobNotFoundError as exc:
+            raise SourceJobNotFoundError(source_job_id) from exc
+        except FullJobNotFoundError as exc:
+            raise SourceJobNotFoundError(source_job_id) from exc
+
     def list_jobs(
         self,
         *,
@@ -223,7 +249,10 @@ class SourceConversionService:
 
     def _source_status(self, status: dict[str, Any], *, source_type: str, prefix: str) -> dict[str, Any]:
         payload = dict(status)
-        payload["job_id"] = prefix + str(status["job_id"])
+        job_id = payload.get("job_id") or payload.get("id")
+        if job_id is None:
+            raise KeyError("job_id")
+        payload["job_id"] = prefix + str(job_id)
         payload["source_type"] = source_type
         if "doc2x_progress" in payload:
             payload["preprocess_progress"] = payload.pop("doc2x_progress")

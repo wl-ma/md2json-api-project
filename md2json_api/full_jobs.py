@@ -72,6 +72,7 @@ class FullJobStore:
                 """
             )
             self._ensure_column("full_jobs", "last_accessed_at", "TEXT")
+            self._ensure_column("full_jobs", "usage_path", "TEXT")
 
     def create(
         self,
@@ -303,6 +304,10 @@ class FullConversionService:
                 progress_callback=lambda progress: self.store.update_md2json_progress(job_id, progress),
             )
             result_path = result.out_dir / f"{result.source_file.stem}.json"
+            if not result_path.exists():
+                fallback_result_path = result.out_dir / "output.json"
+                if fallback_result_path.exists():
+                    result_path = fallback_result_path
             quality_path = result.out_dir / "quality_report.json"
             md2json_usage_path = result.out_dir / "usage_summary.json"
             md2json_usage = json.loads(md2json_usage_path.read_text(encoding="utf-8")) if md2json_usage_path.exists() else {}

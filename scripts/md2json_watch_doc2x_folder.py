@@ -304,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _iter_source_dirs(input_root: Path) -> list[Path]:
-    return [path for path in input_root.rglob("output.md") if path.is_file() and path.parent.is_dir()]
+    return sorted({path.parent for path in input_root.rglob("output.md") if path.is_file() and path.parent.is_dir()})
 
 
 def _env_path(name: str) -> Path | None:
